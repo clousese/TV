@@ -166,7 +166,7 @@ public class PlayerManager implements ParseCallback {
     }
 
     public boolean isDiscMenuAvailable() {
-        return !isEmpty() && player.getDiscMenuState().availability == DiscMenuState.AVAILABILITY_AVAILABLE;
+        return !isEmpty() && DiscMenuState.EMPTY.availability == DiscMenuState.AVAILABILITY_AVAILABLE; // LIVE-ONLY: stock Player has no getDiscMenuState(); disc menus never exist for live
     }
 
     public boolean runMpvScript(MpvScripts.Item item) {
@@ -205,11 +205,11 @@ public class PlayerManager implements ParseCallback {
     }
 
     public List<MediaChapter> getCurrentMediaChapters() {
-        return player.getCurrentMediaChapters();
+        return List.of(); // LIVE-ONLY: stock Player has no getCurrentMediaChapters(); chapters are a disc/VOD feature
     }
 
     public List<MediaEdition> getCurrentMediaEditions() {
-        return player.getCurrentMediaEditions();
+        return List.of(); // LIVE-ONLY: stock Player has no getCurrentMediaEditions(); editions are a disc feature
     }
 
     public MediaItem getCurrentMediaItem() {
@@ -285,7 +285,8 @@ public class PlayerManager implements ParseCallback {
     }
 
     public boolean canPreloadNext() {
-        return PreloadSetting.isEnabled() && PreloadSetting.isNextEpisodeEnabled() && engine != null && engine.getType() == PlayerEngine.Type.EXO && !player.isCurrentMediaItemLive() && !player.getDiscMenuState().navigationPlaybackOngoing && (spec == null || !IsoDiscPreparation.isIso(MediaItemFactory.from(spec)));
+        // LIVE-ONLY: stock Player has no getDiscMenuState(); disc navigation playback never occurs for live.
+        return PreloadSetting.isEnabled() && PreloadSetting.isNextEpisodeEnabled() && engine != null && engine.getType() == PlayerEngine.Type.EXO && !player.isCurrentMediaItemLive() && !DiscMenuState.EMPTY.navigationPlaybackOngoing && (spec == null || !IsoDiscPreparation.isIso(MediaItemFactory.from(spec)));
     }
 
     public boolean isPortrait() {
@@ -444,11 +445,11 @@ public class PlayerManager implements ParseCallback {
     }
 
     public boolean selectChapter(MediaChapter chapter) {
-        return player.selectChapter(chapter);
+        return false; // LIVE-ONLY: stock Player has no selectChapter()
     }
 
     public void selectEdition(MediaEdition edition) {
-        player.selectEdition(edition);
+        // LIVE-ONLY: stock Player has no selectEdition(); editions are a disc feature
     }
 
     public DanmakuConfig getDanmakuConfig() {
@@ -1083,16 +1084,9 @@ public class PlayerManager implements ParseCallback {
         }
 
         private static int getSelectedIsoEditionIndex(PlayerManager manager, Player player) {
-            int selectedIsoEditionIndex = C.INDEX_UNSET;
-            if (manager.spec != null && IsoDiscPreparation.isIso(MediaItemFactory.from(manager.spec))) {
-                for (MediaEdition edition : player.getCurrentMediaEditions()) {
-                    if (edition.selected) {
-                        selectedIsoEditionIndex = edition.index;
-                        break;
-                    }
-                }
-            }
-            return selectedIsoEditionIndex;
+            // LIVE-ONLY: ISO discs never occur for live, and the stock Player has no
+            // getCurrentMediaEditions(); the edition index is always unset.
+            return C.INDEX_UNSET;
         }
 
         private void restorePlayerState(PlayerManager manager) {
@@ -1131,7 +1125,7 @@ public class PlayerManager implements ParseCallback {
             }
         }
 
-        @Override
+        // LIVE-ONLY: stock Player.Listener has no onDiscMenuStateChanged(); kept as a plain method (never invoked by the stock player)
         public void onDiscMenuStateChanged(@NonNull DiscMenuState state) {
             if (state.phase == DiscMenuState.PHASE_OPENING) {
                 App.removeCallbacks(runnable);
@@ -1157,12 +1151,12 @@ public class PlayerManager implements ParseCallback {
             if (initialize) callback.onTracksChanged();
         }
 
-        @Override
+        // LIVE-ONLY: stock Player.Listener has no onMediaChaptersChanged(); kept as a plain method
         public void onMediaChaptersChanged(@NonNull List<MediaChapter> chapters) {
             callback.onMediaOptionsChanged();
         }
 
-        @Override
+        // LIVE-ONLY: stock Player.Listener has no onMediaEditionsChanged(); kept as a plain method
         public void onMediaEditionsChanged(@NonNull List<MediaEdition> editions) {
             callback.onMediaOptionsChanged();
         }

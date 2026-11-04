@@ -39,12 +39,9 @@ public final class ExoCommand {
         if (player == null || manager.isEmpty()) return Result.UNAVAILABLE;
         switch (parsed.property) {
             case "video-scale-x", "video-scale-y" -> {
-                if (playerView == null || playerView.getPlayer() != player || playerView.getVideoSurfaceView() == null) return Result.UNAVAILABLE;
-                VideoTransform current = playerView.getVideoTransform();
-                boolean horizontal = parsed.property.equals("video-scale-x");
-                float scale = (float) propertyValue(parsed, horizontal ? current.scaleX : current.scaleY);
-                playerView.setVideoTransform(new VideoTransform(horizontal ? scale : current.scaleX,
-                        horizontal ? current.scaleY : scale, current.panX, current.panY));
+                // LIVE-ONLY: stock PlayerView has no get/setVideoTransform();
+                // per-command video scaling is dropped (aspect override below is stock and kept).
+                return Result.UNSUPPORTED;
             }
             case "video-aspect-override" -> {
                 if (playerView == null || playerView.getPlayer() != player || playerView.getVideoSurfaceView() == null) return Result.UNAVAILABLE;

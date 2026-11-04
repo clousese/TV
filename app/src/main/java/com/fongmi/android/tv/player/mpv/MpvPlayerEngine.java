@@ -14,7 +14,6 @@ import androidx.media3.common.Tracks;
 import androidx.media3.common.text.SubtitleContent;
 import androidx.media3.common.text.SubtitleOffsets;
 import androidx.media3.common.text.SubtitleSelectionState;
-import androidx.media3.mpvplayer.MpvDecoderMode;
 import androidx.media3.mpvplayer.MpvPlayer;
 
 import com.fongmi.android.tv.App;
@@ -74,7 +73,7 @@ public class MpvPlayerEngine implements PlayerEngine, Player.Listener {
 
     @Override
     public DiscMenuController getDiscMenuController() {
-        return player;
+        return null; // LIVE-ONLY: stock MpvPlayer does not implement DiscMenuController; live never has a disc menu
     }
 
     @Override
@@ -120,60 +119,59 @@ public class MpvPlayerEngine implements PlayerEngine, Player.Listener {
 
     @Override
     public SubtitleSelectionState getSubtitleSelectionState() {
-        return player.getSubtitleSelectionState();
+        return SubtitleSelectionState.EMPTY; // LIVE-ONLY: stock MpvPlayer has no subtitle-selection state API
     }
 
     @Override
     public SubtitleContent getSubtitleContent(TrackSelectionOverride selection) {
-        return player.getSubtitleContentForSelection(selection);
+        return SubtitleContent.UNSUPPORTED; // LIVE-ONLY: no transcript content on the stock player
     }
 
     @Override
     public SubtitleOffsets getSubtitleOffsets() {
-        return player.getSubtitleOffsets();
+        return SubtitleOffsets.ZERO; // LIVE-ONLY: stock MpvPlayer has no subtitle-offset API
     }
 
     @Override
     public void setSubtitleOffsets(SubtitleOffsets offsets) {
-        player.setSubtitleOffsets(offsets);
+        // LIVE-ONLY: stock MpvPlayer has no subtitle-offset API; no-op.
     }
 
     @Override
     public boolean supportsSubtitleOffsets() {
-        return true;
+        return false; // LIVE-ONLY: no subtitle-offset API on the stock player
     }
 
     @Override
     public void setSubtitleContentEnabled(boolean enabled) {
-        player.setSubtitleContentEnabled(enabled);
+        // LIVE-ONLY: stock MpvPlayer has no subtitle-content toggle; no-op.
     }
 
     @Override
     public boolean supportsSubtitleTranscript() {
-        return true;
+        return false; // LIVE-ONLY: no transcript loader in public Media3 1.11
     }
 
     @Override
     public boolean canRetrySubtitleContent(Format format) {
-        return player.canRetrySubtitleContent(format);
+        return false; // LIVE-ONLY: no transcript content to retry
     }
 
     @Override
     public void retrySubtitleContent(Format format) {
-        player.retrySubtitleContent(format);
+        // LIVE-ONLY: no transcript content to retry; no-op.
     }
 
     @Override
     public void setSecondarySubtitleSelection(@Nullable TrackSelectionOverride selection) {
         int mode = SubtitleSetting.getSecondaryMode();
         applySecondarySubtitleMode(mode);
-        if (mode != SubtitleSetting.SECONDARY_MODE_DEFAULT) player.setSecondaryTextTrackSelectionOverride(selection);
+        // LIVE-ONLY: stock MpvPlayer has no secondary-text track override API; dropped.
     }
 
     @Override
     public void restoreSecondarySubtitleSelection(@Nullable TrackSelectionOverride selection) {
-        player.setSecondaryTextTrackAutoSelectionEnabled(false);
-        player.setSecondaryTextTrackSelectionOverride(selection);
+        // LIVE-ONLY: stock MpvPlayer has no secondary-text track override API; no-op.
     }
 
     @Override
@@ -197,13 +195,12 @@ public class MpvPlayerEngine implements PlayerEngine, Player.Listener {
     @Nullable
     public DecoderMode getDecoderMode(@C.TrackType int trackType) {
         if (trackType != C.TRACK_TYPE_VIDEO) return null;
-        return player.getVideoDecoderMode().toCommonDecoderMode();
+        return DecoderMode.AUTO; // LIVE-ONLY: stock MpvPlayer has no video-decoder-mode API
     }
 
     @Override
     public void setDecoderMode(@C.TrackType int trackType, DecoderMode mode) {
-        if (!getSupportedDecoderModes(trackType).contains(mode)) return;
-        player.setVideoDecoderMode(MpvDecoderMode.fromCommonDecoderMode(mode));
+        // LIVE-ONLY: stock MpvPlayer has no video-decoder-mode API; no-op.
     }
 
     @Override
