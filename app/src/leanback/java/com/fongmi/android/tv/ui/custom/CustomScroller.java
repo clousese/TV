@@ -74,12 +74,6 @@ public class CustomScroller extends RecyclerView.OnScrollListener {
         this.enable = page < pageCount || pageCount == 0;
     }
 
-    public void endLoading(Result result) {
-        if (result.getList().isEmpty()) page--;
-        setEnable(result.getPageCount());
-        setLoading(false);
-    }
-
     public void endLoading(boolean hasMore) {
         enable = hasMore;
         setLoading(false);

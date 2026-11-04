@@ -6,7 +6,7 @@ import androidx.room.Entity;
 import androidx.room.PrimaryKey;
 
 import com.fongmi.android.tv.App;
-import com.fongmi.android.tv.api.config.VodConfig;
+import com.fongmi.android.tv.api.config.LiveConfig;
 import com.fongmi.android.tv.db.AppDatabase;
 import com.fongmi.android.tv.impl.Diffable;
 import com.google.gson.annotations.SerializedName;
@@ -44,7 +44,7 @@ public class Keep implements Diffable<Keep> {
     }
 
     public static Keep find(String key) {
-        return find(VodConfig.getCid(), key);
+        return find(LiveConfig.get().getConfig().getId(), key);
     }
 
     public static Keep find(int cid, String key) {

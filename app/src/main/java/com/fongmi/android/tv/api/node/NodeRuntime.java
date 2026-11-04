@@ -3,7 +3,7 @@ package com.fongmi.android.tv.api.node;
 import androidx.annotation.MainThread;
 
 import com.fongmi.android.tv.App;
-import com.fongmi.android.tv.api.config.VodConfig;
+import com.fongmi.android.tv.api.config.LiveConfig;
 import com.fongmi.android.tv.service.PlaybackService;
 import com.fongmi.android.tv.ui.activity.HomeActivity;
 import com.fongmi.android.tv.ui.activity.WebActivity;
@@ -81,7 +81,7 @@ public final class NodeRuntime implements NodeRuntimeApi.Callback {
     @MainThread
     public void releaseIfUnused() {
         if (HomeActivity.isRunning() || PlaybackService.isRunning()) return;
-        VodConfig.get().cancel();
+        LiveConfig.get().cancel();
         Task.execute(this::clearIfUnused);
     }
 

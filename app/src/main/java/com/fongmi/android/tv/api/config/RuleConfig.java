@@ -31,10 +31,10 @@ public class RuleConfig {
 
     private synchronized void merge() {
         if (!dirty) return;
-        List<String> ads = new ArrayList<>(VodConfig.get().getAds());
+        List<String> ads = new ArrayList<>(LiveConfig.get().getAds());
         ads.addAll(LiveConfig.get().getAds());
         this.ads = ads;
-        List<Rule> rules = new ArrayList<>(VodConfig.get().getRules());
+        List<Rule> rules = new ArrayList<>(LiveConfig.get().getRules());
         rules.addAll(LiveConfig.get().getRules());
         this.rules = rules;
         dirty = false;

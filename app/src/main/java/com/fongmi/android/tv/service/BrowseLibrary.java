@@ -29,7 +29,6 @@ final class BrowseLibrary {
 
     private final List<ListenableFuture<?>> tasks = new CopyOnWriteArrayList<>();
     private final Map<String, ListenableFuture<Integer>> childCountTasks = new HashMap<>();
-    private final Map<String, ListenableFuture<ImmutableList<MediaItem>>> searchTasks = new HashMap<>();
 
     private MediaLibrarySession session;
     private long generation;
@@ -54,20 +53,12 @@ final class BrowseLibrary {
     }
 
     ListenableFuture<LibraryResult<Void>> search(ControllerInfo browser, String query, @Nullable LibraryParams params) {
-        long current = generation;
-        ListenableFuture<ImmutableList<MediaItem>> task = searchTasks.computeIfAbsent(query, key -> submit(() -> BrowseTree.search(key)));
-        Futures.addCallback(task, Task.callback(results -> {
-            searchTasks.remove(query, task);
-            if (session != null && current == generation) session.notifySearchResultChanged(browser, query, results.size(), params);
-        }, error -> {
-            searchTasks.remove(query, task);
-            if (session != null && current == generation && !(error instanceof CancellationException)) Log.w("BrowseLibrary", "Unable to search media", error);
-        }), App::post);
+        // LIVE-ONLY: search is removed.
         return Futures.immediateFuture(LibraryResult.ofVoid(params));
     }
 
     ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> getSearchResult(String query, int page, int pageSize, @Nullable LibraryParams params) {
-        return Futures.immediateFuture(LibraryResult.ofItemList(BrowseTree.getSearchResult(query, page, pageSize), params));
+        return Futures.immediateFuture(LibraryResult.ofItemList(ImmutableList.of(), params));
     }
 
     void notifyChildrenChanged(String parent) {
@@ -94,7 +85,6 @@ final class BrowseLibrary {
         tasks.forEach(future -> future.cancel(true));
         tasks.clear();
         childCountTasks.clear();
-        searchTasks.clear();
     }
 
     void release() {

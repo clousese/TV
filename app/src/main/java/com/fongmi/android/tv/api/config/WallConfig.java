@@ -47,7 +47,7 @@ public class WallConfig extends BaseConfig {
     public WallConfig config(Config config) {
         this.config = config;
         if (config.isEmpty()) return this;
-        this.sync = config.getUrl().equals(VodConfig.get().getWall());
+        this.sync = false; // LIVE-ONLY: no VOD config to sync wall with
         return this;
     }
 
