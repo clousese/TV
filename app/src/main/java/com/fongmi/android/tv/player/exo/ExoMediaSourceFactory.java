@@ -3,32 +3,24 @@ package com.fongmi.android.tv.player.exo;
 import androidx.annotation.NonNull;
 import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
-import androidx.media3.common.util.LocalClearKeyLicense;
 import androidx.media3.database.StandaloneDatabaseProvider;
 import androidx.media3.datasource.DataSource;
 import androidx.media3.datasource.DefaultDataSource;
 import androidx.media3.datasource.HttpDataSource;
-import androidx.media3.datasource.ProgressiveIsoCache;
 import androidx.media3.datasource.cache.Cache;
 import androidx.media3.datasource.cache.CacheDataSource;
 import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor;
 import androidx.media3.datasource.cache.SimpleCache;
 import androidx.media3.datasource.okhttp.OkHttpDataSource;
 import androidx.media3.exoplayer.drm.DrmSessionManagerProvider;
-import androidx.media3.exoplayer.libass.LibassPlaybackSession;
 import androidx.media3.exoplayer.source.ConcatenatingMediaSource2;
-import androidx.media3.exoplayer.source.ContentTypeResolvingMediaSource;
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
 import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.source.preload.MediaSourceFactorySupplier;
-import androidx.media3.exoplayer.text.SubtitleTranscript;
-import androidx.media3.exoplayer.text.SubtitleTranscriptParserFactory;
-import androidx.media3.exoplayer.text.SubtitleTranscriptSession;
 import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy;
 import androidx.media3.extractor.DefaultExtractorsFactory;
 import androidx.media3.extractor.ExtractorsFactory;
 import androidx.media3.extractor.mkv.MatroskaExtractor;
-import androidx.media3.extractor.text.SubtitleParser;
 import androidx.media3.extractor.ts.TsExtractor;
 
 import com.fongmi.android.tv.App;
@@ -51,16 +43,16 @@ public class ExoMediaSourceFactory implements MediaSource.Factory {
     private static Cache cache;
 
     private final DefaultMediaSourceFactory defaultMediaSourceFactory;
-    private final LibassPlaybackSession libassPlaybackSession;
-    private final SubtitleTranscriptSession subtitleTranscriptSession;
 
-    private ExoMediaSourceFactory(LibassPlaybackSession libassPlaybackSession, SubtitleTranscriptSession subtitleTranscriptSession) {
-        this.libassPlaybackSession = libassPlaybackSession;
-        this.subtitleTranscriptSession = subtitleTranscriptSession;
+    private ExoMediaSourceFactory() {
         this.defaultMediaSourceFactory = new DefaultMediaSourceFactory(App.get(), createDefaultExtractorsFactory());
     }
 
-    static MediaSourceFactorySupplier supplier(LibassPlaybackSession libassPlaybackSession, SubtitleTranscriptSession subtitleTranscriptSession) {
+    // LIVE-ONLY: the author's private LibassPlaybackSession and
+    // SubtitleTranscriptSession are absent from public Media3 1.11, so the
+    // supplier no longer takes them; media sources are built with the stock
+    // DefaultMediaSourceFactory and its default subtitle parsing.
+    static MediaSourceFactorySupplier supplier() {
         return new MediaSourceFactorySupplier() {
             @NonNull
             @Override
@@ -76,7 +68,7 @@ public class ExoMediaSourceFactory implements MediaSource.Factory {
 
             @Override
             public MediaSource.Factory get() {
-                return new ExoMediaSourceFactory(libassPlaybackSession, subtitleTranscriptSession);
+                return new ExoMediaSourceFactory();
             }
         };
     }
@@ -94,7 +86,11 @@ public class ExoMediaSourceFactory implements MediaSource.Factory {
     public static DataSource.Factory createDataSourceFactory(Map<String, String> headers, Auth.Context auth) {
         Cache sharedCache = getCache();
         CacheDataSource.Factory factory = new CacheDataSource.Factory().setCache(sharedCache).setUpstreamDataSourceFactory(createUpstreamDataSourceFactory(headers, auth)).setCacheWriteDataSinkFactory(null).setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR);
-        return ProgressiveIsoCache.withDiskCache(factory, sharedCache);
+        // LIVE-ONLY: ProgressiveIsoCache is an author-private wrapper absent
+        // from public Media3 1.11 (its cache dir has no such class); the
+        // stock CacheDataSource factory is used directly. Live streams are
+        // not ISO discs, so the ISO-specific cache behaviour is irrelevant.
+        return factory;
     }
 
     public static synchronized Cache getCache() {
@@ -147,18 +143,19 @@ public class ExoMediaSourceFactory implements MediaSource.Factory {
     }
 
     private MediaSource.Factory createMediaSourceFactory(MediaItem mediaItem) {
-        SubtitleTranscript transcript = subtitleTranscriptSession.forMediaItem(mediaItem);
-        ExtractorsFactory extractorsFactory = createDefaultExtractorsFactory().setMp4ClearKeys(
-                LocalClearKeyLicense.parse(mediaItem.localConfiguration.drmConfiguration));
-        SubtitleParser.Factory subtitleParserFactory;
-        if (libassPlaybackSession.isAvailable()) {
-            LibassPlaybackSession.MediaComponents components = libassPlaybackSession.createMediaComponents(mediaItem, extractorsFactory, transcript);
-            extractorsFactory = components.extractorsFactory;
-            subtitleParserFactory = components.subtitleParserFactory;
-        } else subtitleParserFactory = new SubtitleTranscriptParserFactory(transcript);
+        // LIVE-ONLY: the author's private SubtitleTranscriptSession,
+        // SubtitleTranscriptParserFactory, LibassPlaybackSession media
+        // components, LocalClearKeyLicense (common.util) and
+        // ContentTypeResolvingMediaSource are absent from public Media3 1.11
+        // (verified against the 1.11 source trees: no such files in
+        // exoplayer/text, exoplayer/source, common/util, or datasource/cache).
+        // ConcatenatingMediaSource2 IS stock in 1.11 and is kept above.
+        // The stock DefaultMediaSourceFactory infers content type and parses
+        // subtitles itself; local ClearKey license handling is dropped (live
+        // streams do not use locally-supplied ClearKey licenses).
+        ExtractorsFactory extractorsFactory = createDefaultExtractorsFactory();
         DataSource.Factory dataSourceFactory = createDataSourceFactory(ExoUtil.extractHeaders(mediaItem), ExoUtil.extractAuth(mediaItem));
-        MediaSource.Factory factory = new DefaultMediaSourceFactory(dataSourceFactory, extractorsFactory).setSubtitleParserFactory(subtitleParserFactory);
-        return new ContentTypeResolvingMediaSource.Factory(factory, dataSourceFactory);
+        return new DefaultMediaSourceFactory(dataSourceFactory, extractorsFactory);
     }
 
     static DefaultExtractorsFactory createDefaultExtractorsFactory() {

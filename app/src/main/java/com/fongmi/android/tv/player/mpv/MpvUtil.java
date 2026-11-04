@@ -3,15 +3,12 @@ package com.fongmi.android.tv.player.mpv;
 import android.content.pm.PackageManager;
 
 import androidx.annotation.Nullable;
-import androidx.media3.common.C;
 import androidx.media3.common.Player;
 import androidx.media3.datasource.DataSource;
-import androidx.media3.datasource.ProgressiveIsoCache;
 import androidx.media3.datasource.cache.Cache;
 import androidx.media3.datasource.cache.CacheDataSource;
 import androidx.media3.datasource.okhttp.OkHttpDataSource;
 import androidx.media3.mpvplayer.MpvAndroidOptions;
-import androidx.media3.mpvplayer.MpvDecoderMode;
 import androidx.media3.mpvplayer.MpvPlayer;
 import androidx.media3.mpvplayer.MpvPlayerConfig;
 import androidx.media3.mpvplayer.MpvSubtitleOptions;
@@ -22,7 +19,6 @@ import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.player.exo.ExoMediaSourceFactory;
 import com.fongmi.android.tv.player.subtitle.AndroidFontConfig;
 import com.fongmi.android.tv.player.subtitle.ExternalFont;
-import com.fongmi.android.tv.player.subtitle.SubtitleFileContent;
 import com.fongmi.android.tv.player.track.LangUtil;
 import com.fongmi.android.tv.setting.DecodeSetting;
 import com.fongmi.android.tv.setting.PlayerSetting;
@@ -94,9 +90,18 @@ public final class MpvUtil {
     }
 
     public static MpvPlayer buildPlayer(Player.Listener listener) {
-        MpvDecoderMode mode = MpvDecoderMode.fromCommonDecoderMode(DecodeSetting.getDecoderMode(PlayerSetting.ENGINE_MPV, C.TRACK_TYPE_VIDEO));
-        MpvPlayer player = new MpvPlayer.Builder(App.get()).setVideoDecoderMode(mode).setConfig(buildConfig()).build();
-        player.setSubtitleContentLoader(new SubtitleFileContent());
+        // LIVE-ONLY: MpvDecoderMode and MpvPlayer.Builder.setVideoDecoderMode
+        // are author-private extensions absent from public Media3 1.11
+        // (the stock Builder only has setConfig/setDecode/setLooper, and
+        // there is no MpvDecoderMode file in 1.11). The stock Builder's
+        // setDecode(@C.DecodeMode) mapping from the author's common
+        // DecoderMode is not specified in public source, so no decode-mode
+        // call is made here; MPV uses its stock default decoding. Likewise
+        // setSubtitleContentLoader does not exist on the stock MpvPlayer:
+        // the transcript-content loader (built on the
+        // private DefaultSubtitleContentLoader/MpvSubtitleContentLoader) is
+        // dropped, and MPV subtitles fall back to its built-in handling.
+        MpvPlayer player = new MpvPlayer.Builder(App.get()).setConfig(buildConfig()).build();
         setPreferredTextLanguages(player);
         player.addListener(listener);
         return player;
@@ -125,7 +130,10 @@ public final class MpvUtil {
     private static DataSource.Factory createDataSourceFactory() {
         Cache cache = ExoMediaSourceFactory.getCache();
         CacheDataSource.Factory factory = new CacheDataSource.Factory().setCache(cache).setUpstreamDataSourceFactory(new OkHttpDataSource.Factory(OkHttp.player())).setCacheWriteDataSinkFactory(null).setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR);
-        return ProgressiveIsoCache.withDiskCache(factory, cache);
+        // LIVE-ONLY: ProgressiveIsoCache is author-private (no such class in
+        // public Media3 1.11's datasource/cache); the stock CacheDataSource
+        // factory is returned directly, as in ExoMediaSourceFactory.
+        return factory;
     }
 
     static MpvPlayerConfig buildConfig() {

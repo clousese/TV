@@ -1,76 +1,62 @@
 package com.fongmi.android.tv.player.exo;
 
 import androidx.annotation.Nullable;
-import androidx.media3.common.Player;
 import androidx.media3.common.TrackSelectionOverride;
 import androidx.media3.common.text.SubtitleSelectionState;
-import androidx.media3.exoplayer.libass.LibassPlaybackSession;
-import androidx.media3.exoplayer.libass.LibassSubtitleController;
 import androidx.media3.ui.PlayerView;
 import androidx.media3.ui.SubtitleView;
-import androidx.media3.ui.libass.LibassPlayerViewController;
 
 import com.fongmi.android.tv.setting.SubtitleSetting;
 
+// LIVE-ONLY: the author's private LibassPlaybackSession,
+// LibassSubtitleController and LibassPlayerViewController (ui.libass) are
+// absent from public Media3 1.11. Live does not need libass advanced
+// subtitles or a secondary subtitle track: the stock PlayerView renders the
+// single selected subtitle track, and the secondary selection is always
+// empty. The constructor signature is kept so ExoPlayerEngine needs no
+// change; the session argument is no longer used.
 final class ExoSubtitleController {
 
-    private final LibassSubtitleController libassSubtitleController;
-    private final LibassPlaybackSession libassPlaybackSession;
-    private final LibassPlayerViewController playerViewController;
+    @Nullable
+    private PlayerView boundPlayerView;
 
-    ExoSubtitleController(ExoPlayerSession session, Player player) {
-        libassPlaybackSession = session.libassPlaybackSession();
-        libassSubtitleController = session.libassSubtitleController();
-        playerViewController = new LibassPlayerViewController(player, libassPlaybackSession, libassSubtitleController);
-        applySubtitleStyle();
-        applySecondarySubtitleMode();
+    ExoSubtitleController(ExoPlayerSession session, androidx.media3.common.Player player) {
+        // No libass session/controller in the live-only build.
     }
 
     void release() {
-        playerViewController.close();
+        boundPlayerView = null;
     }
 
     void bindPlayerView(PlayerView playerView) {
-        playerViewController.bind(playerView);
+        boundPlayerView = playerView;
     }
 
     void applySubtitleStyle() {
-        libassPlaybackSession.setBottomPositionFraction(SubtitleSetting.getPosition() / 100.0f);
-        libassPlaybackSession.setSecondaryBottomPositionFraction(getSecondaryBottomPositionFraction());
-        libassPlaybackSession.setFontScale(SubtitleSetting.isScaleApplied() ? SubtitleSetting.getAppliedScale() : 1.0f, true);
-        playerViewController.setStyleOverride(SubtitleSetting.isStyleForced() ? SubtitleSetting.getStyle() : null, SubtitleSetting.getFontFamily());
-        playerViewController.setSecondarySubtitleViewConfigurator(this::applySecondarySubtitleStyle);
+        // LIVE-ONLY: apply the user's subtitle style to the stock subtitle
+        // view only. libass bottom-position, font-scale and secondary-track
+        // styling have no stock equivalent and are dropped.
+        PlayerView playerView = boundPlayerView;
+        if (playerView == null) return;
+        SubtitleView subtitleView = playerView.getSubtitleView();
+        if (subtitleView != null) SubtitleSetting.applyStyle(subtitleView);
     }
 
     SubtitleSelectionState getSubtitleSelectionState() {
-        return libassSubtitleController.getSubtitleSelectionState();
+        // LIVE-ONLY: no libass controller, so there is never a secondary
+        // selection; the stock single-track selection is reported as EMPTY.
+        return SubtitleSelectionState.EMPTY;
     }
 
     void setSecondarySubtitleSelection(@Nullable TrackSelectionOverride selection) {
-        applySecondarySubtitleMode();
-        libassSubtitleController.setSecondaryTextTrackSelectionOverride(selection);
+        // LIVE-ONLY: no secondary subtitle track in the stock player; no-op.
     }
 
     void restoreSecondarySubtitleSelection(@Nullable TrackSelectionOverride selection) {
-        libassSubtitleController.setSecondaryTextTrackAutoSelectionEnabled(false);
-        libassSubtitleController.setSecondaryTextTrackSelectionOverride(selection);
+        // LIVE-ONLY: no secondary subtitle track in the stock player; no-op.
     }
 
     void prepareForNewMedia() {
-        applySecondarySubtitleMode();
-    }
-
-    private void applySecondarySubtitleMode() {
-        libassSubtitleController.setSecondaryTextTrackAutoSelectionEnabled(SubtitleSetting.getSecondaryMode() == SubtitleSetting.SECONDARY_MODE_AUTO);
-    }
-
-    private void applySecondarySubtitleStyle(SubtitleView subtitleView) {
-        SubtitleSetting.applyStyle(subtitleView);
-        subtitleView.setBottomPaddingFraction(0.0f);
-        subtitleView.setBottomPosition(getSecondaryBottomPositionFraction());
-    }
-
-    private static float getSecondaryBottomPositionFraction() {
-        return (100.0f - SubtitleSetting.getSecondaryPosition()) / 100.0f;
+        // LIVE-ONLY: nothing to reset without a libass controller.
     }
 }

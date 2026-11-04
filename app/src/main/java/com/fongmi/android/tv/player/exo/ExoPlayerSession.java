@@ -7,96 +7,65 @@ import androidx.annotation.Nullable;
 import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.audio.AudioProcessor;
-import androidx.media3.exoplayer.DecoderManager;
 import androidx.media3.exoplayer.DecoderMode;
 import androidx.media3.exoplayer.ExoPlayer;
-import androidx.media3.exoplayer.libass.LibassConfiguration;
-import androidx.media3.exoplayer.libass.LibassPlaybackSession;
-import androidx.media3.exoplayer.libass.LibassSubtitleController;
 import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.source.preload.DefaultPreloadManager;
 import androidx.media3.exoplayer.source.preload.PreloadException;
 import androidx.media3.exoplayer.source.preload.PreloadManagerListener;
-import androidx.media3.exoplayer.text.SecondaryTextOutput;
-import androidx.media3.exoplayer.text.SubtitleTranscriptSession;
-import androidx.media3.exoplayer.trackselection.SecondaryTextTrackSelector;
 import androidx.media3.exoplayer.trackselection.TrackSelector;
 
 import com.fongmi.android.tv.App;
-import com.fongmi.android.tv.player.subtitle.AndroidFontConfig;
-import com.fongmi.android.tv.player.subtitle.ExternalFont;
-import com.fongmi.android.tv.player.subtitle.SubtitleFileContent;
 import com.fongmi.android.tv.setting.DecodeSetting;
 import com.fongmi.android.tv.setting.PlayerSetting;
-import com.fongmi.android.tv.setting.SubtitleSetting;
-
-import java.io.File;
 
 final class ExoPlayerSession {
 
     private static final String TAG = ExoPlayerSession.class.getSimpleName();
     private static final int MAX_PRELOAD_BUFFER_BYTES = 64 * 1024 * 1024;
-    private static final int LIBASS_MAX_RENDER_PIXELS = 1920 * 1080;
-    private static final int LIBASS_MAX_BITMAP_CACHE_SIZE_MB = 48;
-    private static final int LIBASS_MAX_GLYPH_COUNT = 4096;
     private static final long PRELOAD_DURATION_MS = 10_000;
 
-    private final DecoderManager decoderManager;
-    private final LibassSubtitleController libassSubtitleController;
-    private final LibassPlaybackSession libassPlaybackSession;
-    private final SubtitleTranscriptSession subtitleTranscriptSession;
     private final DefaultPreloadManager preloadManager;
-    private final boolean libassEnabled;
     private final ExoPlayer player;
 
     @Nullable
     private PreloadRequest preloadRequest;
+    private DecoderMode audioMode;
+    private DecoderMode videoMode;
 
     ExoPlayerSession(AudioProcessor audioProcessor) {
-        DecoderMode audioMode = DecoderMode.fromCommonDecoderMode(DecodeSetting.getDecoderMode(PlayerSetting.ENGINE_EXO, C.TRACK_TYPE_AUDIO));
-        DecoderMode videoMode = DecoderMode.fromCommonDecoderMode(DecodeSetting.getDecoderMode(PlayerSetting.ENGINE_EXO, C.TRACK_TYPE_VIDEO));
-        this.decoderManager = new DecoderManager(audioMode, videoMode);
-        TrackSelector.Factory decodeTrackSelectorFactory = context -> ExoUtil.buildTrackSelector(decoderManager);
-        SecondaryTextTrackSelector.Factory secondaryTextTrackSelectorFactory = new SecondaryTextTrackSelector.Factory(decodeTrackSelectorFactory);
-        SecondaryTextOutput secondaryTextOutput = new SecondaryTextOutput();
-        this.libassEnabled = PlayerSetting.isLibass();
-        this.libassPlaybackSession = createLibassPlaybackSession(libassEnabled);
-        this.subtitleTranscriptSession = new SubtitleTranscriptSession();
-        this.subtitleTranscriptSession.setLoader(new SubtitleFileContent());
-        DefaultPreloadManager.Builder builder = createPreloadManagerBuilder(audioProcessor, secondaryTextTrackSelectorFactory, secondaryTextOutput);
+        // LIVE-ONLY: the author's private DecoderManager, LibassPlaybackSession,
+        // LibassSubtitleController, SubtitleTranscriptSession, SecondaryTextOutput
+        // and SecondaryTextTrackSelector are absent from public Media3 1.11 and
+        // are all live-unnecessary (libass advanced subtitles, subtitle
+        // transcripts, decoder management). The session is rebuilt on the stock
+        // APIs: a stock DecodeTrackSelector (see ExoUtil), the stock
+        // DefaultPreloadManager and the stock ExoPlayer. Decoder modes are
+        // stored per session only (the stock player picks decoders itself);
+        // libass is never enabled, so hasLibassSettingChanged() is always false.
+        this.audioMode = DecoderMode.fromCommonDecoderMode(DecodeSetting.getDecoderMode(PlayerSetting.ENGINE_EXO, C.TRACK_TYPE_AUDIO));
+        this.videoMode = DecoderMode.fromCommonDecoderMode(DecodeSetting.getDecoderMode(PlayerSetting.ENGINE_EXO, C.TRACK_TYPE_VIDEO));
+        TrackSelector.Factory trackSelectorFactory = context -> ExoUtil.buildTrackSelector();
+        DefaultPreloadManager.Builder builder = createPreloadManagerBuilder(audioProcessor, trackSelectorFactory);
         this.preloadManager = builder.build();
         this.preloadManager.addListener(new PreloadListener());
         this.player = ExoUtil.buildPlayer(builder);
-        this.subtitleTranscriptSession.setPlayer(player);
-        this.decoderManager.attach(player);
-        this.libassSubtitleController = new LibassSubtitleController(player, libassPlaybackSession, secondaryTextTrackSelectorFactory, secondaryTextOutput);
     }
 
     ExoPlayer player() {
         return player;
     }
 
-    LibassPlaybackSession libassPlaybackSession() {
-        return libassPlaybackSession;
-    }
-
-    SubtitleTranscriptSession subtitleTranscriptSession() {
-        return subtitleTranscriptSession;
-    }
-
-    LibassSubtitleController libassSubtitleController() {
-        return libassSubtitleController;
-    }
-
     boolean hasLibassSettingChanged() {
-        return libassEnabled != PlayerSetting.isLibass();
+        // LIVE-ONLY: libass is stripped; the setting can no longer change playback.
+        return false;
     }
 
     @Nullable
     DecoderMode decoderMode(@C.TrackType int trackType) {
         return switch (trackType) {
-            case C.TRACK_TYPE_AUDIO -> decoderManager.getAudioMode();
-            case C.TRACK_TYPE_VIDEO -> decoderManager.getVideoMode();
+            case C.TRACK_TYPE_AUDIO -> audioMode;
+            case C.TRACK_TYPE_VIDEO -> videoMode;
             default -> null;
         };
     }
@@ -104,16 +73,17 @@ final class ExoPlayerSession {
     void setDecoderMode(@C.TrackType int trackType, DecoderMode mode) {
         if (trackType != C.TRACK_TYPE_AUDIO && trackType != C.TRACK_TYPE_VIDEO) return;
         clearPreload();
-        if (trackType == C.TRACK_TYPE_AUDIO) decoderManager.selectAudioDecoder(mode);
-        else decoderManager.selectVideoDecoder(mode);
+        if (trackType == C.TRACK_TYPE_AUDIO) audioMode = mode;
+        else videoMode = mode;
+        // LIVE-ONLY: no DecoderManager in public Media3 1.11; the stored mode
+        // is kept for the UI (DecoderSettingPanel) only and does not switch
+        // the stock player's decoder at runtime.
     }
 
     void preload(MediaItem mediaItem, long startPositionMs, Runnable onReady, Runnable onError) {
         PreloadRequest request = new PreloadRequest(mediaItem, Math.max(0, startPositionMs), onReady, onError);
         clearPreload();
         preloadRequest = request;
-        libassPlaybackSession.setPreloadMediaItem(mediaItem);
-        subtitleTranscriptSession.setPreloadMediaItem(mediaItem);
         preloadManager.add(request.mediaItem(), 0);
         preloadManager.invalidate();
     }
@@ -129,14 +99,12 @@ final class ExoPlayerSession {
     MediaSource createMediaSource(MediaItem mediaItem) {
         MediaSource preloaded = usePreloadedMediaSource(mediaItem);
         return preloaded != null ? preloaded
-                : ExoMediaSourceFactory.supplier(libassPlaybackSession, subtitleTranscriptSession)
+                : ExoMediaSourceFactory.supplier()
                 .get().createMediaSource(mediaItem);
     }
 
     void clearPreload() {
         PreloadRequest request = preloadRequest;
-        libassPlaybackSession.setPreloadMediaItem(null);
-        subtitleTranscriptSession.setPreloadMediaItem(null);
         if (request == null) return;
         preloadRequest = null;
         preloadManager.remove(request.mediaItem());
@@ -144,30 +112,16 @@ final class ExoPlayerSession {
 
     void release() {
         preloadRequest = null;
-        libassSubtitleController.close();
-        subtitleTranscriptSession.close();
         preloadManager.release();
-        decoderManager.detach();
         player.release();
-        libassPlaybackSession.close();
     }
 
     long getPreloadStartPositionMs() {
         return preloadRequest == null ? 0 : preloadRequest.startPositionMs();
     }
 
-    private DefaultPreloadManager.Builder createPreloadManagerBuilder(AudioProcessor audioProcessor, SecondaryTextTrackSelector.Factory secondaryTextTrackSelectorFactory, SecondaryTextOutput secondaryTextOutput) {
-        return new DefaultPreloadManager.Builder(App.get(), ignored -> DefaultPreloadManager.PreloadStatus.specifiedRangeLoaded(getPreloadStartPositionMs(), PRELOAD_DURATION_MS)).setMediaSourceFactorySupplier(ExoMediaSourceFactory.supplier(libassPlaybackSession, subtitleTranscriptSession)).setRenderersFactory(ExoUtil.buildRenderersFactory(audioProcessor, secondaryTextOutput, libassPlaybackSession, decoderManager)).setTrackSelectorFactory(secondaryTextTrackSelectorFactory).setLoadControl(ExoUtil.buildLoadControl(MAX_PRELOAD_BUFFER_BYTES));
-    }
-
-    private static LibassPlaybackSession createLibassPlaybackSession(boolean libassEnabled) {
-        File fontConfig = libassEnabled ? AndroidFontConfig.prepare() : null;
-        String fontConfigPath = fontConfig != null && fontConfig.length() > 0 ? fontConfig.getAbsolutePath() : null;
-        ExternalFont.Item font = libassEnabled ? SubtitleSetting.getFont() : null;
-        String fontFamily = font == null ? null : font.familyName();
-        String fontsDirectory = libassEnabled ? (font == null ? ExternalFont.getDirectory() : font.directory()).getAbsolutePath() : null;
-        LibassConfiguration configuration = new LibassConfiguration.Builder().setFontConfig(fontConfigPath).setFontsDirectory(fontsDirectory).setDefaultFontFamily(fontFamily).setMaximumRenderPixels(LIBASS_MAX_RENDER_PIXELS).setMaximumGlyphCount(LIBASS_MAX_GLYPH_COUNT).setMaximumBitmapCacheSizeMb(LIBASS_MAX_BITMAP_CACHE_SIZE_MB).build();
-        return new LibassPlaybackSession(configuration, libassEnabled);
+    private DefaultPreloadManager.Builder createPreloadManagerBuilder(AudioProcessor audioProcessor, TrackSelector.Factory trackSelectorFactory) {
+        return new DefaultPreloadManager.Builder(App.get(), ignored -> DefaultPreloadManager.PreloadStatus.specifiedRangeLoaded(getPreloadStartPositionMs(), PRELOAD_DURATION_MS)).setMediaSourceFactorySupplier(ExoMediaSourceFactory.supplier()).setRenderersFactory(ExoUtil.buildRenderersFactory(audioProcessor)).setTrackSelectorFactory(trackSelectorFactory).setLoadControl(ExoUtil.buildLoadControl(MAX_PRELOAD_BUFFER_BYTES));
     }
 
     private final class PreloadListener implements PreloadManagerListener {

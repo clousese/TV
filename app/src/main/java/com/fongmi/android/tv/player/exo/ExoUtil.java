@@ -11,7 +11,6 @@ import androidx.media3.common.AudioAttributes;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MimeTypes;
 import androidx.media3.common.audio.AudioProcessor;
-import androidx.media3.exoplayer.DecoderManager;
 import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.ExoPlayer;
@@ -22,12 +21,9 @@ import androidx.media3.exoplayer.analytics.PlayerId;
 import androidx.media3.exoplayer.audio.AudioSink;
 import androidx.media3.exoplayer.audio.AudioTrackAudioOutputProvider;
 import androidx.media3.exoplayer.audio.DefaultAudioSink;
-import androidx.media3.exoplayer.libass.LibassPlaybackSession;
 import androidx.media3.exoplayer.source.preload.DefaultPreloadManager;
 import androidx.media3.exoplayer.text.TextOutput;
-import androidx.media3.exoplayer.text.TextRenderer;
 import androidx.media3.exoplayer.trackselection.DecodeTrackSelector;
-import androidx.media3.exoplayer.trackselection.DefaultTrackSelector;
 
 import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.player.track.LangUtil;
@@ -71,9 +67,14 @@ public final class ExoUtil {
         return item.localConfiguration != null && item.localConfiguration.tag instanceof Auth.Context auth ? auth : null;
     }
 
-    static DecodeTrackSelector buildTrackSelector(DecoderManager decoderManager) {
-        DecodeTrackSelector trackSelector = decoderManager.createTrackSelector(App.get());
-        DefaultTrackSelector.Parameters.Builder builder = trackSelector.buildUponParameters();
+    // LIVE-ONLY: the author's private DecoderManager is absent from public
+    // Media3 1.11. DecodeTrackSelector itself is stock in 1.11, so the
+    // selector is built directly from it; decoder-mode selection is no
+    // longer delegated to a decoder manager (the stock player picks
+    // decoders, and ExoPlayerSession only stores the requested mode).
+    static DecodeTrackSelector buildTrackSelector() {
+        DecodeTrackSelector trackSelector = new DecodeTrackSelector(App.get());
+        androidx.media3.exoplayer.trackselection.DefaultTrackSelector.Parameters.Builder builder = trackSelector.buildUponParameters();
         if (DecodeSetting.isPreferAAC()) builder.setPreferredAudioMimeType(MimeTypes.AUDIO_AAC);
         builder.setPreferredTextLanguages(LangUtil.getPreferredTextLanguages());
         builder.setTunnelingEnabled(DecodeSetting.isTunnelingEnabled());
@@ -83,11 +84,11 @@ public final class ExoUtil {
     }
 
     static RenderersFactory buildRenderersFactory() {
-        return new ExoRenderersFactory(null, null, null, null);
+        return new ExoRenderersFactory(null);
     }
 
-    static RenderersFactory buildRenderersFactory(AudioProcessor audioProcessor, TextOutput secondaryTextOutput, LibassPlaybackSession libassPlaybackSession, DecoderManager decoderManager) {
-        return new ExoRenderersFactory(audioProcessor, secondaryTextOutput, libassPlaybackSession, decoderManager);
+    static RenderersFactory buildRenderersFactory(AudioProcessor audioProcessor) {
+        return new ExoRenderersFactory(audioProcessor);
     }
 
     private static AudioSink buildAudioSink(Context context, boolean enableFloatOutput, boolean enableAudioOutputPlaybackParams, @Nullable AudioProcessor audioProcessor) {
@@ -100,17 +101,15 @@ public final class ExoUtil {
     private static final class ExoRenderersFactory extends DefaultRenderersFactory {
 
         @Nullable private final AudioProcessor audioProcessor;
-        @Nullable private final TextOutput secondaryTextOutput;
-        @Nullable private final LibassPlaybackSession libassPlaybackSession;
 
-        private ExoRenderersFactory(@Nullable AudioProcessor audioProcessor, @Nullable TextOutput secondaryTextOutput, @Nullable LibassPlaybackSession libassPlaybackSession, @Nullable DecoderManager decoderManager) {
+        private ExoRenderersFactory(@Nullable AudioProcessor audioProcessor) {
             super(App.get());
             this.audioProcessor = audioProcessor;
-            this.secondaryTextOutput = secondaryTextOutput;
-            this.libassPlaybackSession = libassPlaybackSession;
-            if (decoderManager != null) setDecoderManager(decoderManager);
+            // LIVE-ONLY: setDecoderManager() and
+            // setEnableSurfaceControlFrameRetention() are author-private
+            // extensions absent from public Media3 1.11 and are dropped;
+            // setEnableDecoderFallback() and the other stock settings stay.
             setEnableDecoderFallback(false);
-            setEnableSurfaceControlFrameRetention(true);
             experimentalSetEnableMediaCodecVideoRendererPrewarming(true);
             setExtensionRendererMode(EXTENSION_RENDERER_MODE_ON);
             setDolbyVisionOutputPolicy(DecodeSetting.getDolbyVisionOutputPolicy());
@@ -124,13 +123,14 @@ public final class ExoUtil {
         @Override
         protected void buildMiscellaneousRenderers(@NonNull Context context, @NonNull Handler eventHandler, int extensionRendererMode, @NonNull ArrayList<Renderer> out) {
             super.buildMiscellaneousRenderers(context, eventHandler, extensionRendererMode, out);
-            if (libassPlaybackSession != null && libassPlaybackSession.isAvailable()) out.add(libassPlaybackSession.createClockRenderer());
+            // LIVE-ONLY: no libass clock renderer in public Media3 1.11.
         }
 
         @Override
         protected void buildTextRenderers(@NonNull Context context, @NonNull TextOutput output, @NonNull Looper outputLooper, int extensionRendererMode, @NonNull ArrayList<Renderer> out) {
             super.buildTextRenderers(context, output, outputLooper, extensionRendererMode, out);
-            if (secondaryTextOutput != null) out.add(new TextRenderer(secondaryTextOutput, outputLooper));
+            // LIVE-ONLY: no secondary TextRenderer; the stock text renderer
+            // added by super() renders the single selected subtitle track.
         }
     }
 }

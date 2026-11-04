@@ -212,7 +212,8 @@ public class MpvPlayerEngine implements PlayerEngine, Player.Listener {
     public boolean setMediaItem(PlaySpec spec, long startPositionMs) {
         effect.applyVideoEffect();
         effect.clearAudioEffect();
-        player.setDiscDataSourceFactory(ExoMediaSourceFactory.createDataSourceFactory(spec.getHeaders(), spec.getAuth()));
+        // LIVE-ONLY: stock MpvPlayer has no setDiscDataSourceFactory(); disc
+        // data sources are not used for live.
         MediaItem item = MediaItemFactory.from(spec);
         String url = item.localConfiguration.uri.toString();
         if (ConcatenatingUrl.matches(url)) item = item.buildUpon().setUri(ConcatenatingUrl.toEdl(url)).build();
