@@ -4,7 +4,7 @@ import android.text.TextUtils;
 
 import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.Constant;
-import com.fongmi.android.tv.api.config.VodConfig;
+import com.fongmi.android.tv.api.config.LiveConfig;
 import com.fongmi.android.tv.bean.Config;
 import com.fongmi.android.tv.bean.Device;
 import com.fongmi.android.tv.bean.History;
@@ -165,55 +165,25 @@ public class Action implements Process {
     }
 
     private void sendHistory(Device device, Map<String, String> params, boolean force) throws IOException {
-        Config config = Config.find(Config.objectFrom(params.get("config")));
-        if (config.getUrl() == null) config = Config.vod();
-        FormBody.Builder body = new FormBody.Builder();
-        body.add("config", config.toString());
-        body.add("targets", App.gson().toJson(History.get(config.getId())));
-        post(device, "history", body, force);
+        // LIVE-ONLY: VOD history sync is removed; live keeps are synced via keep.
     }
 
     private void sendKeep(Device device, boolean force) throws IOException {
         FormBody.Builder body = new FormBody.Builder();
-        body.add("targets", App.gson().toJson(Keep.getVod()));
+        body.add("targets", App.gson().toJson(Keep.getLive()));
         body.add("configs", App.gson().toJson(Config.findUrls()));
         post(device, "keep", body, force);
     }
 
     public void syncHistory(Map<String, String> params, boolean force) {
-        Config config = Config.find(Config.objectFrom(params.get("config")));
-        List<History> targets = History.arrayFrom(params.get("targets"));
-        if (config.getUrl() == null) return;
-        if (config.getUrl().equals(VodConfig.getUrl())) {
-            if (force) History.delete(config.getId());
-            History.sync(targets);
-            RefreshEvent.history();
-        } else {
-            VodConfig.load(config, getCallback(targets, force, config.getId()));
-        }
-    }
-
-    private Callback getCallback(List<History> targets, boolean force, int cid) {
-        return new Callback() {
-            @Override
-            public void success() {
-                if (force) History.delete(cid);
-                History.sync(targets);
-                RefreshEvent.history();
-            }
-
-            @Override
-            public void error(String msg) {
-                Notify.show(msg);
-            }
-        };
+        // LIVE-ONLY: VOD history sync is removed.
     }
 
     private void syncKeep(Map<String, String> params, boolean force) {
         List<Keep> targets = Keep.arrayFrom(params.get("targets"));
         List<Config> configs = Config.arrayFrom(params.get("configs"));
-        if (TextUtils.isEmpty(VodConfig.getUrl()) && !configs.isEmpty()) {
-            VodConfig.load(Config.find(configs.get(0)), getCallback(configs, targets, force));
+        if (TextUtils.isEmpty(LiveConfig.getUrl()) && !configs.isEmpty()) {
+            LiveConfig.load(Config.find(configs.get(0)), getCallback(configs, targets, force));
         } else {
             if (force) Keep.deleteAll();
             Keep.sync(configs, targets);

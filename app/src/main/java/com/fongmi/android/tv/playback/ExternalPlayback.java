@@ -13,10 +13,8 @@ import androidx.fragment.app.FragmentActivity;
 import androidx.media3.common.C;
 
 import com.fongmi.android.tv.R;
-import com.fongmi.android.tv.api.SiteApi;
 import com.fongmi.android.tv.bean.Result;
 import com.fongmi.android.tv.bean.Sub;
-import com.fongmi.android.tv.ui.activity.VideoActivity;
 import com.fongmi.android.tv.utils.FileChooser;
 import com.fongmi.android.tv.utils.FileUtil;
 import com.fongmi.android.tv.utils.Notify;
@@ -80,9 +78,10 @@ public final class ExternalPlayback {
     private static void startFile(FragmentActivity activity, Uri uri, Intent source, Consumer<String> onLive) {
         if (FileChooser.isLiveSource(new Intent(source).setDataAndType(uri, source.getType()))) {
             FileChooser.getFileUri(uri, file -> onLive.accept(UrlUtil.toLocalUrl(file)), () -> finishForwarded(activity, source));
-        } else if (FileChooser.persistReadPermission(source, uri)) {
-            start(activity, SiteApi.LOCAL, uri.toString(), FileUtil.getDisplayName(uri), source);
         } else {
+            // LIVE-ONLY: generic local video files are no longer played.
+            // Only live playlists (m3u/txt etc.) are handled via onLive.
+            Notify.show(R.string.error_play_url);
             finishForwarded(activity, source);
         }
     }
@@ -92,23 +91,10 @@ public final class ExternalPlayback {
     }
 
     private static void openText(FragmentActivity activity, String text, Intent source) {
-        String url = Sniffer.getUrl(text);
-        start(activity, SiteApi.PUSH, url, url, source);
-    }
-
-    private static void start(FragmentActivity activity, String key, String id, String fallbackName, Intent source) {
-        String title = getTitle(source);
-        Intent player = new Intent(activity, VideoActivity.class);
-        player.setClipData(source.getClipData());
-        player.addFlags(source.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION));
-        player.putExtra("key", key).putExtra("id", id).putExtra("name", TextUtils.isEmpty(title) ? fallbackName : title);
-        if (!TextUtils.isEmpty(title)) player.putExtra(TITLE, title);
-        player.putExtra(HEADERS, getHeaders(source));
-        long position = getPosition(source);
-        if (position >= 0) player.putExtra(POSITION, position);
-        boolean forwardResult = source.getBooleanExtra(FORWARD_RESULT, false);
-        player.putExtra(RETURN_RESULT, forwardResult && source.getBooleanExtra("return_result", false));
-        launch(activity, player.putExtra(SUBTITLE, prepareSubtitle(source)), forwardResult);
+        // LIVE-ONLY: shared text / push URLs are not VOD playback anymore.
+        // Live playlists are handled by the file path above (onLive).
+        Notify.show(R.string.error_play_url);
+        finishForwarded(activity, source);
     }
 
     private static void launch(Activity activity, Intent player, boolean forwardResult) {
@@ -182,11 +168,6 @@ public final class ExternalPlayback {
         }
         String subtitle = source.getStringExtra(SUBTITLE);
         if (!TextUtils.isEmpty(subtitle)) result.addSub(Sub.from(FileUtil.getDisplayName(UriUtil.uri(subtitle)), subtitle));
-    }
-
-    public static void applyTitle(Result detail, Intent source) {
-        String title = source.getStringExtra(TITLE);
-        if (!TextUtils.isEmpty(title) && detail != null && !detail.getList().isEmpty()) detail.getVod().setName(title);
     }
 
     public static long takePosition(Intent source, long fallback) {

@@ -4,7 +4,6 @@ import android.text.TextUtils;
 
 import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.Constant;
-import com.fongmi.android.tv.api.config.VodConfig;
 import com.fongmi.android.tv.api.loader.BaseLoader;
 import com.fongmi.android.tv.bean.Parse;
 import com.fongmi.android.tv.bean.Result;
@@ -70,13 +69,11 @@ public class ParseJob implements ParseCallback {
     }
 
     private void setParse(Result result, boolean useParse) {
-        if (useParse) parse = VodConfig.get().getParse();
+        // LIVE-ONLY: useParse no longer loads a VOD parse line; fallback below applies.
         if (result.getPlayUrl().startsWith("json:")) parse = Parse.get(1, result.getPlayUrl().substring(5));
-        if (result.getPlayUrl().startsWith("parse:")) parse = VodConfig.get().getParse(result.getPlayUrl().substring(6));
         if (parse == null || parse.isEmpty()) parse = Parse.get(0, result.getPlayUrl());
         parseHeaders = resolveHeaders(parse, result);
-        String click = VodConfig.get().getSite(result.getKey()).getClick();
-        parseClick = TextUtils.isEmpty(click) ? result.getClick() : click;
+        parseClick = result.getClick();
     }
 
     static Map<String, String> resolveHeaders(Parse parse, Result result) {
@@ -136,19 +133,19 @@ public class ParseJob implements ParseCallback {
 
     private void jsonExtend(String webUrl) throws Throwable {
         LinkedHashMap<String, String> jxs = new LinkedHashMap<>();
-        for (Parse item : VodConfig.get().getParses()) if (item.getType() == 1) jxs.put(item.getName(), item.extUrl());
+        // LIVE-ONLY: no VOD parse lines, jxs stays empty and jsonExtend will error.
         checkResult(Result.fromObject(BaseLoader.get().jsonExt(parse.getUrl(), jxs, webUrl)));
     }
 
     private void jsonMix(String webUrl, String flag) throws Throwable {
         LinkedHashMap<String, HashMap<String, String>> jxs = new LinkedHashMap<>();
-        for (Parse item : VodConfig.get().getParses()) jxs.put(item.getName(), item.mixMap());
+        // LIVE-ONLY: no VOD parse lines, jxs stays empty.
         checkResult(Result.fromObject(BaseLoader.get().jsonExtMix(flag, parse.getUrl(), parse.getName(), jxs, webUrl)));
     }
 
     private void superParse(String webUrl, String flag) throws Exception {
-        List<Parse> json = VodConfig.get().getParses(1, flag);
-        List<Parse> webs = VodConfig.get().getParses(0, flag);
+        List<Parse> json = List.of();
+        List<Parse> webs = List.of(); // LIVE-ONLY: superParse without VOD lines errors out
         CountDownLatch latch = new CountDownLatch(json.size() + webs.size());
         for (Parse item : json) infinite.execute(() -> jsonParse(latch, item, webUrl));
         ParseCallback webCallback = new ParseCallback() {

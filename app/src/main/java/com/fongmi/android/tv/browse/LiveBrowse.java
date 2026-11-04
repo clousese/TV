@@ -36,22 +36,6 @@ class LiveBrowse {
         return liveHome().getGroups().stream().filter(group -> !group.isHidden() && !group.isKeep()).map(group -> BrowseTree.folder(LIVE_GROUP + group.getName(), group.getName(), R.drawable.ic_browse_folder)).collect(ImmutableList.toImmutableList());
     }
 
-    static List<MediaItem> search(String keyword) {
-        Set<Channel> seen = new HashSet<>();
-        ImmutableList.Builder<MediaItem> items = ImmutableList.builder();
-        Live live = liveHome();
-        for (Group group : live.getGroups()) {
-            if (group.isHidden() || group.isKeep()) continue;
-            List<Channel> channels = group.getChannel();
-            for (int i = 0; i < channels.size(); i++) {
-                Channel channel = channels.get(i);
-                if (!BrowseSearch.key(channel.getName()).contains(keyword) && !BrowseSearch.key(channel.getShow()).contains(keyword) && !BrowseSearch.key(channel.getNumber()).contains(keyword)) continue;
-                if (seen.add(channel)) items.add(channelItem(live, group.getName(), channel, i));
-            }
-        }
-        return items.build();
-    }
-
     @NonNull
     static ImmutableList<MediaItem> getFavorites() {
         Set<String> names = new HashSet<>();

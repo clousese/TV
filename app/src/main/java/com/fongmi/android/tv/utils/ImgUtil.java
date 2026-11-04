@@ -24,7 +24,7 @@ import com.bumptech.glide.request.RequestListener;
 import com.bumptech.glide.request.target.Target;
 import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.R;
-import com.fongmi.android.tv.api.config.VodConfig;
+import com.fongmi.android.tv.api.config.LiveConfig;
 import com.fongmi.android.tv.impl.CustomTarget;
 import com.fongmi.android.tv.server.Server;
 import com.github.catvod.utils.Crypto;
@@ -52,7 +52,7 @@ public class ImgUtil {
 
     public static void logo(ImageView view) {
         try {
-            Glide.with(view).load(UrlUtil.convert(VodConfig.get().getConfig().getLogo())).circleCrop().override(Target.SIZE_ORIGINAL, Target.SIZE_ORIGINAL).error(R.drawable.ic_logo).into(view);
+            Glide.with(view).load(UrlUtil.convert(LiveConfig.get().getConfig().getLogo())).circleCrop().override(Target.SIZE_ORIGINAL, Target.SIZE_ORIGINAL).error(R.drawable.ic_logo).into(view);
         } catch (Throwable e) {
             e.printStackTrace();
         }

@@ -85,7 +85,7 @@ public class LiveConfig extends BaseConfig {
     public LiveConfig config(Config config) {
         this.config = config;
         if (config.isEmpty()) return this;
-        this.sync = config.getUrl().equals(VodConfig.getUrl());
+        this.sync = false; // LIVE-ONLY: VOD config removed, no VOD config to sync with
         return this;
     }
 

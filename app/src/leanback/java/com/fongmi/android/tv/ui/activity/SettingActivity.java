@@ -11,11 +11,9 @@ import com.fongmi.android.tv.BuildConfig;
 import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.Updater;
 import com.fongmi.android.tv.api.config.LiveConfig;
-import com.fongmi.android.tv.api.config.VodConfig;
 import com.fongmi.android.tv.api.config.WallConfig;
 import com.fongmi.android.tv.bean.Config;
 import com.fongmi.android.tv.bean.Live;
-import com.fongmi.android.tv.bean.Site;
 import com.fongmi.android.tv.databinding.ActivitySettingBinding;
 import com.fongmi.android.tv.db.BackupManager;
 import com.fongmi.android.tv.event.ConfigEvent;
@@ -23,7 +21,6 @@ import com.fongmi.android.tv.event.RefreshEvent;
 import com.fongmi.android.tv.impl.Callback;
 import com.fongmi.android.tv.impl.ConfigListener;
 import com.fongmi.android.tv.impl.LiveListener;
-import com.fongmi.android.tv.impl.SiteListener;
 import com.fongmi.android.tv.setting.PlayerSetting;
 import com.fongmi.android.tv.setting.Setting;
 import com.fongmi.android.tv.ui.base.BaseActivity;
@@ -32,7 +29,6 @@ import com.fongmi.android.tv.ui.dialog.DohDialog;
 import com.fongmi.android.tv.ui.dialog.HistoryDialog;
 import com.fongmi.android.tv.ui.dialog.LiveDialog;
 import com.fongmi.android.tv.ui.dialog.RestoreDialog;
-import com.fongmi.android.tv.ui.dialog.SiteDialog;
 import com.fongmi.android.tv.utils.FileUtil;
 import com.fongmi.android.tv.utils.Notify;
 import com.fongmi.android.tv.utils.PermissionUtil;
@@ -46,7 +42,7 @@ import org.greenrobot.eventbus.ThreadMode;
 import java.util.ArrayList;
 import java.util.List;
 
-public class SettingActivity extends BaseActivity implements ConfigListener, SiteListener, LiveListener, DohDialog.Listener {
+public class SettingActivity extends BaseActivity implements ConfigListener, LiveListener, DohDialog.Listener {
 
     private ActivitySettingBinding mBinding;
     private String[] size;
@@ -56,12 +52,12 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Sit
     }
 
     private int getDohIndex() {
-        return Math.max(0, VodConfig.get().getDoh().indexOf(Doh.objectFrom(Setting.getDoh())));
+        return Math.max(0, Doh.get(com.fongmi.android.tv.App.get()).indexOf(Doh.objectFrom(Setting.getDoh())));
     }
 
     private String[] getDohList() {
         List<String> list = new ArrayList<>();
-        for (Doh item : VodConfig.get().getDoh()) list.add(item.getName());
+        for (Doh item : Doh.get(com.fongmi.android.tv.App.get())) list.add(item.getName());
         return list.toArray(new String[0]);
     }
 
@@ -72,8 +68,7 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Sit
 
     @Override
     protected void initView(Bundle savedInstanceState) {
-        mBinding.vod.requestFocus();
-        mBinding.vodUrl.setText(VodConfig.getDesc());
+        mBinding.live.requestFocus();
         mBinding.liveUrl.setText(LiveConfig.getDesc());
         mBinding.wallUrl.setText(WallConfig.getDesc());
         mBinding.versionText.setText(BuildConfig.VERSION_NAME);
@@ -98,7 +93,6 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Sit
 
     @Override
     protected void initEvent() {
-        mBinding.vod.setOnClickListener(this::onVod);
         mBinding.doh.setOnClickListener(this::setDoh);
         mBinding.live.setOnClickListener(this::onLive);
         mBinding.wall.setOnClickListener(this::onWall);
@@ -107,16 +101,12 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Sit
         mBinding.backup.setOnClickListener(this::onBackup);
         mBinding.player.setOnClickListener(this::onPlayer);
         mBinding.module.setOnClickListener(view -> ModuleActivity.start(this));
-        mBinding.danmaku.setOnClickListener(this::onDanmaku);
         mBinding.restore.setOnClickListener(this::onRestore);
         mBinding.version.setOnClickListener(this::onVersion);
-        mBinding.vod.setOnLongClickListener(this::onVodEdit);
-        mBinding.vodHome.setOnClickListener(this::onVodHome);
         mBinding.live.setOnLongClickListener(this::onLiveEdit);
         mBinding.liveHome.setOnClickListener(this::onLiveHome);
         mBinding.wall.setOnLongClickListener(this::onWallEdit);
         mBinding.incognito.setOnClickListener(this::setIncognito);
-        mBinding.vodHistory.setOnClickListener(this::onVodHistory);
         mBinding.liveHistory.setOnClickListener(this::onLiveHistory);
         mBinding.wallDefault.setOnClickListener(this::setWallDefault);
         mBinding.wallRefresh.setOnClickListener(this::setWallRefresh);
@@ -131,9 +121,6 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Sit
 
     private void load(Config config) {
         switch (config.getType()) {
-            case 0:
-                VodConfig.load(config, getCallback());
-                break;
             case 1:
                 LiveConfig.load(config, getCallback());
                 break;
@@ -166,17 +153,8 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Sit
     }
 
     @Override
-    public void setSite(Site item) {
-        VodConfig.get().setHome(item);
-    }
-
-    @Override
     public void setLive(Live item) {
         LiveConfig.get().setHome(item);
-    }
-
-    private void onVod(View view) {
-        ConfigDialog.create().vod().show(this);
     }
 
     private void onLive(View view) {
@@ -185,11 +163,6 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Sit
 
     private void onWall(View view) {
         ConfigDialog.create().wall().show(this);
-    }
-
-    private boolean onVodEdit(View view) {
-        ConfigDialog.create().vod().edit().show(this);
-        return true;
     }
 
     private boolean onLiveEdit(View view) {
@@ -202,16 +175,8 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Sit
         return true;
     }
 
-    private void onVodHome(View view) {
-        SiteDialog.create().action().show(this);
-    }
-
     private void onLiveHome(View view) {
         LiveDialog.create().action().show(this);
-    }
-
-    private void onVodHistory(View view) {
-        HistoryDialog.create().vod().show(this);
     }
 
     private void onLiveHistory(View view) {
@@ -220,10 +185,6 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Sit
 
     private void onPlayer(View view) {
         SettingPlayerActivity.start(this);
-    }
-
-    private void onDanmaku(View view) {
-        SettingDanmakuActivity.start(this);
     }
 
     private void onVersion(View view) {
@@ -309,7 +270,6 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Sit
     }
 
     private void initConfig() {
-        VodConfig.get().init().load(getCallback());
         LiveConfig.get().init().load();
         WallConfig.get().init().load();
     }
@@ -317,7 +277,6 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Sit
     @Subscribe(threadMode = ThreadMode.MAIN)
     public void onConfigEvent(ConfigEvent event) {
         if (event.type() != ConfigEvent.Type.COMMON) return;
-        mBinding.vodUrl.setText(VodConfig.getDesc());
         mBinding.liveUrl.setText(LiveConfig.getDesc());
         mBinding.wallUrl.setText(WallConfig.getDesc());
     }

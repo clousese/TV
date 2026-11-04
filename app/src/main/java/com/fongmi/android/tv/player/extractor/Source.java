@@ -4,9 +4,7 @@ import android.net.Uri;
 
 import com.fongmi.android.tv.api.loader.BaseLoader;
 import com.fongmi.android.tv.bean.Episode;
-import com.fongmi.android.tv.bean.Flag;
 import com.fongmi.android.tv.bean.Result;
-import com.fongmi.android.tv.bean.Vod;
 import com.fongmi.android.tv.utils.SourceUrl;
 import com.fongmi.android.tv.utils.TorrentUrl;
 import com.fongmi.android.tv.utils.UrlUtil;
@@ -14,11 +12,8 @@ import com.github.catvod.utils.Task;
 import com.github.catvod.utils.UriUtil;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -74,35 +69,6 @@ public class Source {
     private synchronized void end() {
         active--;
         notifyAll();
-    }
-
-    private void addCallable(Iterator<Episode> iterator, List<Callable<List<Episode>>> items) {
-        String url = iterator.next().getUrl();
-        String scheme = UriUtil.scheme(url);
-        if ("push".equals(scheme) || "video".equals(scheme) || "webview".equals(scheme)) return;
-        if (Thunder.Parser.match(url) && !Thunder.Parser.isDeferred(url)) {
-            items.add(Thunder.Parser.get(url));
-            iterator.remove();
-        } else if (YouTube.Parser.match(url)) {
-            items.add(YouTube.Parser.get(url));
-            iterator.remove();
-        }
-    }
-
-    public void parse(Vod vod) throws Exception {
-        begin();
-        try (ExecutorService executor = Executors.newCachedThreadPool()) {
-            for (Flag flag : vod.getFlags()) parseEpisodes(flag, executor);
-        } finally {
-            end();
-        }
-    }
-
-    private void parseEpisodes(Flag flag, ExecutorService executor) throws Exception {
-        List<Callable<List<Episode>>> items = new ArrayList<>();
-        Iterator<Episode> iterator = flag.getEpisodes().iterator();
-        while (iterator.hasNext()) addCallable(iterator, items);
-        for (Future<List<Episode>> future : executor.invokeAll(items, 30, TimeUnit.SECONDS)) flag.getEpisodes().addAll(future.get());
     }
 
     public String fetch(Result result) throws Exception {
