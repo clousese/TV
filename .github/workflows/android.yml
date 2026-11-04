@@ -1,0 +1,88 @@
+# LIVE-ONLY: build only the TV (leanback) flavor.
+# The mobile flavor is NOT built here: its source set was not stripped
+# yet and still references deleted VOD classes, so assembleRelease
+# (both flavors) would fail. Build leanback only.
+name: Build Live-Only APK (leanback)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master, fongmi, live-only]
+    paths:
+      - "app/**"
+      - "catvod/**"
+      - "gradle/**"
+      - ".github/workflows/android.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      # Signing: the app's build.gradle reads local.properties for
+      # storeFile/keyAlias/storePassword, and uses that key for both
+      # debug and release. Without local.properties the build fails.
+      # Preferred: save a keystore once as repository secrets
+      #   ANDROID_KEYSTORE_BASE64 (base64 of a .jks file),
+      #   ANDROID_KEY_ALIAS, ANDROID_KEYSTORE_PASSWORD.
+      # Fallback: generate a throwaway keystore for this run only.
+      # WARNING: an APK signed with a throwaway key cannot be updated
+      # by a later APK signed with a different key. If the fallback
+      # ran, download the generated keystore artifact below, save it
+      # as the secret above, and rebuild -- after that, updates work.
+      - name: Prepare signing keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > keystore.jks
+            ALIAS="${KEY_ALIAS:-liveonly}"
+            PASS="$KEYSTORE_PASSWORD"
+            echo "GENERATED_KEYSTORE=false" >> "$GITHUB_ENV"
+          else
+            ALIAS="liveonly"
+            PASS="liveonly123"
+            keytool -genkeypair -v -keystore keystore.jks \
+              -alias "$ALIAS" -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "$PASS" -keypass "$PASS" \
+              -dname "CN=LiveOnly, OU=LiveOnly, O=LiveOnly, C=CN"
+            echo "GENERATED_KEYSTORE=true" >> "$GITHUB_ENV"
+          fi
+          printf 'storeFile=keystore.jks\nkeyAlias=%s\nstorePassword=%s\n' "$ALIAS" "$PASS" > local.properties
+          echo "KEY_ALIAS=$ALIAS" >> "$GITHUB_ENV"
+
+      - name: Build leanback release APK
+        run: ./gradlew :app:assembleLeanbackRelease --stacktrace
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-only-leanback-apk
+          path: app/build/outputs/apk/leanback/release/*.apk
+          if-no-files-found: error
+
+      # Only when the fallback key was generated: keep it so the user
+      # can save it as a secret for future runs. Delete this artifact
+      # after saving the secret.
+      - name: Upload generated keystore (fallback only)
+        if: env.GENERATED_KEYSTORE == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-keystore-save-as-secret
+          path: keystore.jks
+          if-no-files-found: error
