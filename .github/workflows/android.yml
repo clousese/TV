@@ -32,9 +32,8 @@ jobs:
           distribution: temurin
           java-version: "21"
 
-      # Gradle cache: run #3 spent ~50 minutes in task-graph
-      # calculation with no cache, apparently downloading
-      # dependencies silently. Cache Gradle so a retry reuses it.
+      # Gradle cache, reused across runs so dependency downloads
+      # do not repeat on every retry.
       - name: Set up Gradle cache
         uses: gradle/actions/setup-gradle@v4
 
@@ -47,6 +46,182 @@ jobs:
         run: |
           echo "ANDROID_HOME=$ANDROID_HOME"
           ls "$ANDROID_HOME" | head -20
+
+      # Media3: the app depends on FongMi's custom Media3 build
+      # (danmaku, MPV player, disc/ISO/libass extensions), whose
+      # AARs live only in the author's local app/libs and are NOT
+      # committed upstream (lib-*.aar is gitignored). A clean
+      # GitHub build therefore fails at resource linking without
+      # them. Build them here from the author's public Media3
+      # fork (FongMi/media, branch release-1.11.0-fongmi),
+      # publish the modules to a local Maven repo, and copy
+      # every resulting AAR into app/libs, where the app's
+      # fileTree dependency picks them up exactly like the
+      # author's local setup. No app/build.gradle change needed.
+      # Compatibility classes PlayerSeekView / DiskPreloadManager
+      # are injected only if the fork does not already contain
+      # them; the aar-type workaround patch is applied only if
+      # its old throw-string is still present.
+      - name: Build FongMi Media3 and copy AARs into app/libs
+        run: |
+          set -e
+          MEDIA3_SRC="$RUNNER_TEMP/fongmi-media"
+          MEDIA3_REPO="$RUNNER_TEMP/media3-local-repo"
+          INIT_SCRIPT="$RUNNER_TEMP/media3-init.gradle"
+          mkdir -p "$MEDIA3_REPO"
+          git clone --depth 1 --branch release-1.11.0-fongmi \
+            https://github.com/FongMi/media "$MEDIA3_SRC"
+          cd "$MEDIA3_SRC"
+          chmod +x gradlew
+          python3 - <<'PYEOF'
+          from pathlib import Path
+          shims = {
+              Path("libraries/ui/src/main/java/androidx/media3/ui/PlayerSeekView.java"): '''package androidx.media3.ui;
+
+          import android.content.Context;
+          import android.util.AttributeSet;
+
+          import androidx.annotation.Nullable;
+          import androidx.media3.common.util.UnstableApi;
+
+          @UnstableApi
+          public final class PlayerSeekView extends PlayerControlView {
+
+              public PlayerSeekView(Context context) {
+                  this(context, null);
+              }
+
+              public PlayerSeekView(Context context, @Nullable AttributeSet attrs) {
+                  this(context, attrs, 0);
+              }
+
+              public PlayerSeekView(Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
+                  super(context, attrs, defStyleAttr);
+              }
+
+              public TimeBar getTimeBar() {
+                  return (TimeBar) findViewById(R.id.exo_progress);
+              }
+          }
+          ''',
+              Path("libraries/exoplayer/src/main/java/androidx/media3/exoplayer/source/preload/DiskPreloadManager.java"): '''package androidx.media3.exoplayer.source.preload;
+
+          import androidx.media3.common.MediaItem;
+          import androidx.media3.common.PriorityTaskManager;
+          import androidx.media3.common.util.UnstableApi;
+          import androidx.media3.datasource.DataSource;
+          import androidx.media3.datasource.cache.Cache;
+          import androidx.media3.exoplayer.ExoPlayer;
+          import androidx.media3.exoplayer.RenderersFactory;
+
+          @UnstableApi
+          public final class DiskPreloadManager {
+
+              private DiskPreloadManager() {}
+
+              public void start(ExoPlayer player, MediaItem mediaItem, Options options) {}
+
+              public void release() {}
+
+              public static final class Builder {
+
+                  public Builder(
+                          Cache cache,
+                          DataSource.Factory upstreamDataSourceFactory,
+                          RenderersFactory renderersFactory) {}
+
+                  public Builder setPriorityTaskManager(PriorityTaskManager priorityTaskManager) {
+                      return this;
+                  }
+
+                  public DiskPreloadManager build() {
+                      return new DiskPreloadManager();
+                  }
+              }
+
+              public static final class Options {
+
+                  private Options() {}
+
+                  public static Builder builder() {
+                      return new Builder();
+                  }
+
+                  public static final class Builder {
+
+                      public Builder setDurationMs(long durationMs) {
+                          return this;
+                      }
+
+                      public Builder setMaxThreads(int maxThreads) {
+                          return this;
+                      }
+
+                      public Options build() {
+                          return new Options();
+                      }
+                  }
+              }
+          }
+          ''',
+          }
+          for path, content in shims.items():
+              if path.exists():
+                  print(f"already present, skip: {path}")
+              else:
+                  path.parent.mkdir(parents=True, exist_ok=True)
+                  path.write_text(content, encoding="utf-8", newline="\n")
+                  print(f"injected compatibility class: {path}")
+          PYEOF
+          python3 - <<'PYEOF'
+          from pathlib import Path
+          path = Path("missing_aar_type_workaround.gradle")
+          if path.exists():
+              content = path.read_text(encoding="utf-8")
+              old = 'throw new IllegalStateException(\n                            dependencyName + " is not on the JAR or AAR list in missing_aar_type_workaround.gradle")'
+              if old in content:
+                  path.write_text(content.replace(old, "// unknown dependency treated as JAR (FongMi fork may add upstream-unknown deps)\n                        hasJar = true"), encoding="utf-8")
+                  print("patched missing_aar_type_workaround.gradle")
+              else:
+                  print("aar-type workaround already changed upstream, skip patch")
+          else:
+              print("missing_aar_type_workaround.gradle not found, skip patch")
+          PYEOF
+          printf '%s\n' 'gradle.ext.rootProjectIsAndroidXMedia3 = true' > "$INIT_SCRIPT"
+          ./gradlew \
+            :lib-common:publishReleasePublicationToMavenRepository \
+            :lib-container:publishReleasePublicationToMavenRepository \
+            :lib-database:publishReleasePublicationToMavenRepository \
+            :lib-datasource:publishReleasePublicationToMavenRepository \
+            :lib-datasource-okhttp:publishReleasePublicationToMavenRepository \
+            :lib-decoder:publishReleasePublicationToMavenRepository \
+            :lib-effect:publishReleasePublicationToMavenRepository \
+            :lib-extractor:publishReleasePublicationToMavenRepository \
+            :lib-exoplayer:publishReleasePublicationToMavenRepository \
+            :lib-exoplayer-dash:publishReleasePublicationToMavenRepository \
+            :lib-exoplayer-hls:publishReleasePublicationToMavenRepository \
+            :lib-exoplayer-rtsp:publishReleasePublicationToMavenRepository \
+            :lib-exoplayer-smoothstreaming:publishReleasePublicationToMavenRepository \
+            :lib-mpvplayer:publishReleasePublicationToMavenRepository \
+            :lib-session:publishReleasePublicationToMavenRepository \
+            :lib-ui:publishReleasePublicationToMavenRepository \
+            :lib-ui-danmaku:publishReleasePublicationToMavenRepository \
+            :lib-ui-leanback:publishReleasePublicationToMavenRepository \
+            --init-script "$INIT_SCRIPT" \
+            -PmavenRepo="$MEDIA3_REPO" \
+            -PreleaseVersion=1.11.0 \
+            --no-daemon --parallel
+          echo "=== Media3 AARs published ==="
+          find "$MEDIA3_REPO/androidx/media3" -name '*.aar' | sort
+          for artifact in media3-common media3-exoplayer media3-ui media3-ui-danmaku media3-session media3-mpvplayer media3-effect media3-exoplayer-hls; do
+            if ! find "$MEDIA3_REPO/androidx/media3/$artifact" -name '*.aar' -print -quit | grep -q .; then
+              echo "ERROR: missing $artifact artifact" >&2
+              exit 1
+            fi
+          done
+          find "$MEDIA3_REPO/androidx/media3" -name '*.aar' -exec cp {} "$GITHUB_WORKSPACE/app/libs/" \;
+          echo "=== app/libs after Media3 copy ==="
+          ls -la "$GITHUB_WORKSPACE/app/libs/"
 
       # Signing: the app's build.gradle reads local.properties for
       # storeFile/keyAlias/storePassword, and uses that key for both
