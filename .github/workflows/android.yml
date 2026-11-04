@@ -20,6 +20,9 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Do not let a stalled Gradle run hang for the 6-hour default:
+    # 90 minutes is already far beyond a normal first build.
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
 
@@ -28,6 +31,12 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
+
+      # Gradle cache: run #3 spent ~50 minutes in task-graph
+      # calculation with no cache, apparently downloading
+      # dependencies silently. Cache Gradle so a retry reuses it.
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v4
 
       # No setup-android step: ubuntu-latest runners already ship an
       # Android SDK (ANDROID_HOME). android-actions/setup-android@v3
@@ -78,8 +87,14 @@ jobs:
       - name: Make Gradle wrapper executable
         run: chmod +x gradlew
 
+      # MPV verification skipped on purpose: it reads
+      # app/libs/lib-mpvplayer-release.aar and
+      # app/libs/lib-decoder-ffmpeg-release.aar, which were never
+      # committed upstream, so a clean GitHub build cannot pass it.
+      # MPV libraries are excluded from the app APK packaging anyway;
+      # MPV remains an optional runtime module installed separately.
       - name: Build leanback release APK
-        run: ./gradlew :app:assembleLeanbackRelease --stacktrace
+        run: ./gradlew :app:assembleLeanbackRelease --stacktrace --info --console=plain -x verifyLeanbackReleaseMpvNative
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
