@@ -24,7 +24,7 @@ import androidx.annotation.RequiresApi;
 
 import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.Constant;
-import com.fongmi.android.tv.api.config.VodConfig;
+import com.fongmi.android.tv.api.loader.BaseLoader;
 import com.fongmi.android.tv.impl.ParseCallback;
 import com.fongmi.android.tv.setting.Setting;
 import com.fongmi.android.tv.ui.dialog.CloudflareDialog;
@@ -239,7 +239,7 @@ public final class ParseWebView extends WebView implements DialogInterface.OnDis
     private boolean isVideoFormat(String url) {
         try {
             if (!detect && url.equals(this.url)) return false;
-            Spider spider = VodConfig.get().getSite(key).spider();
+            Spider spider = BaseLoader.get().getSpider(key);
             if (spider.manualVideoCheck()) return spider.isVideoFormat(url);
             return Sniffer.isVideoFormat(url);
         } catch (Exception ignored) {

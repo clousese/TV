@@ -78,12 +78,13 @@ public class LivePlaybackController {
     }
 
     public void redirectPush(String url) {
-        String target = url.substring("push://".length());
+        // LIVE-ONLY: push:// channels used to be handed to the VOD player.
+        // There is no VOD player anymore, so a push channel is an error
+        // instead of a silent redirect.
         dataSource.cancelUrl();
         state.clearPlayback();
         host.stopPlaybackForRefresh();
-        if (target.isEmpty()) playbackError(ResUtil.getString(R.string.error_play_url));
-        else host.openPush(target);
+        playbackError(ResUtil.getString(R.string.error_play_url));
     }
 
     private void startResolvedPlayback(Result result, LivePlayRequest request, String realUrl) {

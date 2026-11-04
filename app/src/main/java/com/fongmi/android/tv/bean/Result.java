@@ -7,7 +7,6 @@ import android.text.TextUtils;
 import androidx.annotation.NonNull;
 
 import com.fongmi.android.tv.App;
-import com.fongmi.android.tv.api.config.VodConfig;
 import com.fongmi.android.tv.gson.DanmakuAdapter;
 import com.fongmi.android.tv.gson.FilterAdapter;
 import com.fongmi.android.tv.gson.HeaderAdapter;
@@ -43,11 +42,6 @@ public class Result implements Parcelable {
     @ElementList(entry = "ty", required = false, inline = true)
     @SerializedName("class")
     private List<Class> types;
-
-    @Path("list")
-    @ElementList(entry = "video", required = false, inline = true)
-    @SerializedName("list")
-    private List<Vod> list;
 
     @SerializedName("filters")
     @JsonAdapter(FilterAdapter.class)
@@ -161,30 +155,10 @@ public class Result implements Parcelable {
         return result;
     }
 
-    public static Result folder(Vod item) {
-        Result result = new Result();
-        Class type = new Class();
-        type.setTypeFlag("1");
-        type.setTypeId(item.getId());
-        type.setTypeName(item.getName());
-        result.setTypes(Arrays.asList(type));
-        return result;
-    }
-
     public static Result type(String json) {
         Result result = new Result();
         result.setTypes(Arrays.asList(Class.objectFrom(json)));
         return result.trans();
-    }
-
-    public static Result list(List<Vod> items) {
-        Result result = new Result();
-        result.setList(items);
-        return result;
-    }
-
-    public static Result vod(Vod item) {
-        return list(Arrays.asList(item));
     }
 
     public List<Class> getTypes() {
@@ -193,10 +167,6 @@ public class Result implements Parcelable {
 
     public void setTypes(List<Class> types) {
         this.types = types;
-    }
-
-    public List<Vod> getList() {
-        return list == null ? Collections.emptyList() : list;
     }
 
     public List<Episode> getResolvedEpisodes() {
@@ -213,10 +183,6 @@ public class Result implements Parcelable {
 
     public void setTorrentFile(File file) {
         this.torrentFile = file;
-    }
-
-    public void setList(List<Vod> list) {
-        this.list = list;
     }
 
     public LinkedHashMap<String, List<Filter>> getFilters() {
@@ -414,8 +380,8 @@ public class Result implements Parcelable {
     }
 
     public boolean isUseParse() {
-        if (direct || !VodConfig.hasParse()) return false;
-        return (getPlayUrl().isEmpty() && VodConfig.get().getFlags().contains(getFlag())) || getJx() == 1;
+        // LIVE-ONLY: there is no VOD parse config anymore, so never use VOD parse.
+        return false;
     }
 
     public boolean needParse() {
@@ -430,10 +396,6 @@ public class Result implements Parcelable {
         return getList().isEmpty() ? Style.rect() : getList().get(0).getStyle(style);
     }
 
-    public Vod getVod() {
-        return getList().isEmpty() ? new Vod() : getList().get(0);
-    }
-
     public Result clear() {
         getList().clear();
         return this;
@@ -442,7 +404,6 @@ public class Result implements Parcelable {
     public Result trans() {
         if (Trans.pass()) return this;
         getTypes().forEach(Class::trans);
-        getList().forEach(Vod::trans);
         getSubs().forEach(Sub::trans);
         return this;
     }

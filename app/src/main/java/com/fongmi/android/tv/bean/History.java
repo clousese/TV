@@ -12,7 +12,7 @@ import androidx.room.PrimaryKey;
 import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.Constant;
 import com.fongmi.android.tv.R;
-import com.fongmi.android.tv.api.config.VodConfig;
+import com.fongmi.android.tv.api.config.LiveConfig;
 import com.fongmi.android.tv.db.AppDatabase;
 import com.fongmi.android.tv.impl.Diffable;
 import com.github.catvod.utils.Task;
@@ -87,7 +87,7 @@ public class History implements Diffable<History> {
     }
 
     public static List<History> get() {
-        return get(VodConfig.getCid());
+        return get(LiveConfig.get().getConfig().getId());
     }
 
     public static List<History> get(int cid) {
@@ -95,12 +95,12 @@ public class History implements Diffable<History> {
     }
 
     public static History find(String key) {
-        return AppDatabase.get().getHistoryDao().find(VodConfig.getCid(), key);
+        return AppDatabase.get().getHistoryDao().find(LiveConfig.get().getConfig().getId(), key);
     }
 
     public static List<History> findByName(String name) {
         try {
-            return AppDatabase.get().getHistoryDao().findByName(VodConfig.getCid(), name);
+            return AppDatabase.get().getHistoryDao().findByName(LiveConfig.get().getConfig().getId(), name);
         } catch (Exception e) {
             return Collections.emptyList();
         }
@@ -121,10 +121,10 @@ public class History implements Diffable<History> {
     private void sync() {
         List<History> items = findByName(getVodName());
         if (items.isEmpty()) {
-            cid(VodConfig.getCid()).save();
+            cid(LiveConfig.get().getConfig().getId()).save();
         } else {
             long latestTime = items.stream().mapToLong(History::getCreateTime).max().orElse(0L);
-            if (getCreateTime() > latestTime) cid(VodConfig.getCid()).mergeFrom(items, true).save();
+            if (getCreateTime() > latestTime) cid(LiveConfig.get().getConfig().getId()).mergeFrom(items, true).save();
         }
     }
 
@@ -272,7 +272,7 @@ public class History implements Diffable<History> {
     }
 
     public String getSiteName() {
-        return VodConfig.get().getSite(getSiteKey()).getName();
+        return ""; // LIVE-ONLY: VOD site names are gone
     }
 
     public String getSiteKey() {
