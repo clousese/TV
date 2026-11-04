@@ -1,0 +1,71 @@
+# One-time cleanup for the live-only fork. This workflow deletes the
+# remaining VOD files in a single commit, then deletes itself.
+# It is NOT part of the live-only app; do not keep it after it runs.
+name: One-time live-only cleanup
+
+on:
+  push:
+    branches: [live-only]
+    paths:
+      - '.github/workflows/cleanup-vod.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: live-only
+      - name: Delete remaining VOD files and this workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          rm -f 'app/src/leanback/res/layout/activity_vod.xml'
+          rm -f 'app/src/leanback/res/layout/adapter_site.xml'
+          rm -f 'app/src/leanback/res/layout/adapter_vod.xml'
+          rm -f 'app/src/leanback/res/layout/adapter_vod_list.xml'
+          rm -f 'app/src/leanback/res/layout/adapter_vod_oval.xml'
+          rm -f 'app/src/leanback/res/layout/adapter_vod_rect.xml'
+          rm -f 'app/src/leanback/res/layout/dialog_video_setting.xml'
+          rm -f 'app/src/leanback/res/layout/view_control_vod.xml'
+          rm -f 'app/src/leanback/res/layout/view_control_vod_action.xml'
+          rm -f 'app/src/main/java/com/fongmi/android/tv/api/config/VodConfig.java'
+          rm -f 'app/src/main/java/com/fongmi/android/tv/bean/Collect.java'
+          rm -f 'app/src/main/java/com/fongmi/android/tv/bean/Vod.java'
+          rm -f 'app/src/main/java/com/fongmi/android/tv/browse/BrowseSearch.java'
+          rm -f 'app/src/main/java/com/fongmi/android/tv/browse/VodBrowse.java'
+          rm -f 'app/src/main/java/com/fongmi/android/tv/model/SiteViewModel.java'
+          rm -f 'app/src/main/java/com/fongmi/android/tv/model/VideoViewModel.java'
+          rm -f 'app/src/main/java/com/fongmi/android/tv/playback/vod/VodDataSource.java'
+          rm -f 'app/src/main/java/com/fongmi/android/tv/playback/vod/VodDetailResult.java'
+          rm -f 'app/src/main/java/com/fongmi/android/tv/playback/vod/VodFallbackPolicy.java'
+          rm -f 'app/src/main/java/com/fongmi/android/tv/playback/vod/VodHistoryPolicy.java'
+          rm -f 'app/src/main/java/com/fongmi/android/tv/playback/vod/VodPlayRequest.java'
+          rm -f 'app/src/main/java/com/fongmi/android/tv/playback/vod/VodPlaybackController.java'
+          rm -f 'app/src/main/java/com/fongmi/android/tv/playback/vod/VodPlaybackHost.java'
+          rm -f 'app/src/main/java/com/fongmi/android/tv/playback/vod/VodPlaybackInfo.java'
+          rm -f 'app/src/main/java/com/fongmi/android/tv/playback/vod/VodPlaybackMedia.java'
+          rm -f 'app/src/main/java/com/fongmi/android/tv/playback/vod/VodPlaybackState.java'
+          rm -f 'app/src/main/java/com/fongmi/android/tv/playback/vod/VodPreloader.java'
+          rm -f 'app/src/main/java/com/fongmi/android/tv/playback/vod/VodSkipPolicy.java'
+          rm -f 'app/src/main/java/com/fongmi/android/tv/player/LiveDanmaku.java'
+          rm -f 'app/src/main/java/com/fongmi/android/tv/setting/VideoSetting.java'
+          rm -f 'app/src/main/java/com/fongmi/android/tv/ui/dialog/ParseDialog.java'
+          rm -f 'app/src/main/java/com/fongmi/android/tv/ui/dialog/VideoSettingDialog.java'
+          rm -f 'app/src/main/java/com/fongmi/android/tv/ui/dialog/VideoSettingPanel.java'
+          rm -f 'app/src/mobile/java/com/fongmi/android/tv/bean/CastVideo.java'
+          rm -f 'app/src/mobile/java/com/fongmi/android/tv/ui/activity/VideoActivity.java'
+          rm -f 'app/src/mobile/java/com/fongmi/android/tv/ui/adapter/VodAdapter.java'
+          rm -f 'app/src/mobile/java/com/fongmi/android/tv/ui/base/BaseVodHolder.java'
+          rm -f 'app/src/mobile/java/com/fongmi/android/tv/ui/fragment/VodFragment.java'
+          rm -f 'app/src/mobile/java/com/fongmi/android/tv/ui/holder/VodListHolder.java'
+          rm -f 'app/src/mobile/java/com/fongmi/android/tv/ui/holder/VodOvalHolder.java'
+          rm -f 'app/src/mobile/java/com/fongmi/android/tv/ui/holder/VodRectHolder.java'
+          rm -f '.github/workflows/cleanup-vod.yml'
+          git add -A
+          if git diff --cached --quiet; then echo 'nothing to delete'; exit 0; fi
+          git commit -m 'Live-only: bulk cleanup of remaining VOD files'
+          git push origin live-only
