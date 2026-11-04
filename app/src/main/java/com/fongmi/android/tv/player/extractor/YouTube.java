@@ -10,7 +10,6 @@ import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.bean.Episode;
 import com.fongmi.android.tv.bean.Result;
 import com.fongmi.android.tv.bean.Sub;
-import com.fongmi.android.tv.bean.Vod;
 import com.fongmi.android.tv.exception.ExtractException;
 import com.fongmi.android.tv.impl.NewPipeImpl;
 import com.fongmi.android.tv.utils.ResUtil;
@@ -83,21 +82,12 @@ public class YouTube implements Source.Extractor {
         StreamInfo info = StreamInfo.getInfo(result.getUrl().v());
         result.setDirect();
         result.setSubs(getSubtitles(info.getSubtitles()));
-        result.setList(List.of(convert(info).trans()));
+        // LIVE-ONLY: VOD metadata list removed; live URL is returned below.
         return getPlayUrl(info);
     }
 
     private String getPlayUrl(StreamInfo info) throws Exception {
         return isLive(info) ? getLive(info) : getMpd(info);
-    }
-
-    private Vod convert(StreamInfo info) {
-        Vod vod = new Vod();
-        vod.setName(info.getName());
-        vod.setDirector(info.getUploaderName());
-        if (info.getDescription() != null) vod.setContent(info.getDescription().getContent());
-        if (!info.getThumbnails().isEmpty()) vod.setPic(info.getThumbnails().get(info.getThumbnails().size() - 1).getUrl());
-        return vod;
     }
 
     private boolean isLive(StreamInfo info) {

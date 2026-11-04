@@ -7,7 +7,7 @@ import androidx.annotation.Nullable;
 
 import androidx.media3.ui.danmaku.DanmakuConfig;
 
-import com.fongmi.android.tv.api.config.VodConfig;
+import com.fongmi.android.tv.api.config.LiveConfig;
 import com.fongmi.android.tv.player.mpv.MpvConfigFile;
 import com.fongmi.android.tv.player.subtitle.ExternalFont;
 import com.github.catvod.utils.Prefers;
@@ -305,7 +305,7 @@ public class DanmakuSetting {
     public static String getEffectiveApiUrl() {
         String userUrl = getApiUrl();
         if (!TextUtils.isEmpty(userUrl)) return userUrl;
-        return VodConfig.get().getConfig().getDanmaku();
+        return LiveConfig.get().getConfig().getDanmaku();
     }
 
     public static void resetAppearance() {

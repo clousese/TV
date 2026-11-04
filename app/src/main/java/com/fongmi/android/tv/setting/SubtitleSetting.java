@@ -11,7 +11,7 @@ import androidx.media3.ui.CaptionStyleCompat;
 import androidx.media3.ui.SubtitleView;
 
 import com.fongmi.android.tv.App;
-import com.fongmi.android.tv.api.config.VodConfig;
+import com.fongmi.android.tv.api.config.LiveConfig;
 import com.fongmi.android.tv.player.mpv.MpvConfigFile;
 import com.fongmi.android.tv.player.subtitle.ExternalFont;
 import com.github.catvod.utils.Prefers;
@@ -74,7 +74,7 @@ public class SubtitleSetting {
 
     public static String getEffectiveToken() {
         String userToken = getSearchToken();
-        return TextUtils.isEmpty(userToken) ? VodConfig.get().getConfig().getAssrt() : userToken;
+        return TextUtils.isEmpty(userToken) ? LiveConfig.get().getConfig().getAssrt() : userToken;
     }
 
     public static void putSearchToken(String token) {

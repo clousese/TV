@@ -96,7 +96,6 @@ public final class WebActivity extends BaseActivity implements BrowserWebView.Br
         if (activity == null || activity.isFinishing() || activity.isDestroyed()) return;
         Intent intent = new Intent(activity, WebActivity.class).putExtra(EXTRA_WEB, App.gson().toJson(options));
         activity.startActivity(intent);
-        if (activity instanceof VideoActivity) activity.finish();
     }
 
     @Override
