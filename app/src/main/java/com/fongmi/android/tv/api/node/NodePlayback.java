@@ -8,8 +8,6 @@ import androidx.media3.common.MediaMetadata;
 
 import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.event.RefreshEvent;
-import com.fongmi.android.tv.playback.vod.VodPlaybackHost;
-import com.fongmi.android.tv.playback.vod.VodPlaybackInfo;
 import com.fongmi.android.tv.player.PlaybackSnapshot;
 import com.fongmi.android.tv.player.PlayerManager;
 import com.fongmi.android.tv.server.Server;
@@ -31,15 +29,10 @@ final class NodePlayback {
     }
 
     void setPlayInfo(String flag, String id) {
-        VodPlaybackInfo.Snapshot snapshot = VodPlaybackInfo.get();
-        String title = snapshot.title();
-        String episodeName = snapshot.episodeName();
-        if (TextUtils.isEmpty(flag)) flag = snapshot.flag();
-        if (title.isEmpty() && App.activity() instanceof VodPlaybackHost host) {
-            title = host.getVodName();
-            episodeName = host.getVodMark();
-        }
-        playInfo = new PlayInfo(text(title), text(episodeName), fileName(id), text(flag), text(id));
+        // Live-only: no VOD playback snapshot exists; live title/episode come
+        // from PlaybackSnapshot metadata in getPlayInfo(), so here we keep only
+        // the caller-supplied flag/id.
+        playInfo = new PlayInfo("", "", fileName(id), text(flag), text(id));
     }
 
     String getPlayInfo() {
@@ -50,13 +43,6 @@ final class NodePlayback {
         String episodeName = text(metadata == null ? null : metadata.artist);
         if (title.isEmpty()) title = pending.title();
         if (episodeName.isEmpty()) episodeName = pending.episodeName();
-        VodPlaybackInfo.Snapshot snapshot = VodPlaybackInfo.get();
-        if (title.isEmpty()) title = snapshot.title();
-        if (episodeName.isEmpty()) episodeName = snapshot.episodeName();
-        if (App.activity() instanceof VodPlaybackHost host) {
-            if (title.isEmpty()) title = host.getVodName();
-            if (episodeName.isEmpty()) episodeName = host.getVodMark();
-        }
         return serializePlayInfo(current, pending, title, episodeName);
     }
 

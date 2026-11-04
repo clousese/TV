@@ -3,4 +3,13 @@
     <item name="remove" type="id" />
     <item name="test" type="id" />
 
+    <!-- Live-only: these ids were previously defined by the deleted VOD
+         detail layout (leanback activity_video.xml) but are still referenced
+         by the leanback adapter layouts' nextFocus attributes, so AAPT2
+         resource linking fails without them. -->
+    <item name="episode" type="id" />
+    <item name="part" type="id" />
+    <item name="flag" type="id" />
+    <item name="array" type="id" />
+
 </resources>
