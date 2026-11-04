@@ -333,6 +333,9 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
         mGroup.setPosition(position[1]);
         mLive.selectGroup(mGroup);
         mLive.selectChannel(mGroup.current());
+        // LIVE-ONLY: opening the app should land on full-screen playback,
+        // not on the channel list. The list can be brought back with toggle.
+        hideUI();
     }
 
     private void setPosition() {
@@ -1144,7 +1147,6 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
         } else if (handleWebViewNavigation()) {
             return;
         } else {
-            if (isTaskRoot()) startActivity(new Intent(this, HomeActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP));
             super.onBackInvoked();
         }
     }

@@ -414,20 +414,13 @@ public class PlaybackService extends MediaLibraryService implements MediaLibrary
     public void onRefreshEvent(RefreshEvent event) {
         if (session == null) return;
         if (event.getType() == RefreshEvent.Type.KEEP) {
-            library.notifyChildrenChanged(BrowseTree.VOD_KEEP);
             library.notifyChildrenChanged(BrowseTree.LIVE_KEEP);
-            updateMediaButtons();
-        } else if (event.getType() == RefreshEvent.Type.HISTORY) {
-            library.notifyChildrenChanged("VOD");
-            BrowsePlayback playback = getBrowsePlayback();
-            String parent = playback == null ? null : playback.getFolderId();
-            if (parent != null) library.notifyChildrenChanged(parent);
             updateMediaButtons();
         } else if (event.getType() == RefreshEvent.Type.HOME) {
             cancelNavigation();
             library.invalidate();
-            BrowseTree.clearVod();
-            library.notifyChildrenChanged("VOD");
+            BrowseTree.clearSearch();
+            library.notifyChildrenChanged("LIVE");
         }
     }
 
@@ -437,14 +430,8 @@ public class PlaybackService extends MediaLibraryService implements MediaLibrary
         liveMetadata.cancel();
         cancelNavigation();
         library.invalidate();
-        if (event.isVod()) {
-            BrowseTree.clearVod();
-            library.notifyChildrenChanged("VOD");
-            library.notifyChildrenChanged(BrowseTree.VOD_KEEP);
-        } else if (event.isLive()) {
+        if (event.isLive()) {
             BrowseTree.clearSearch();
-        }
-        if (event.isVod() || event.isLive()) {
             library.notifyChildrenChanged("LIVE");
             library.notifyChildrenChanged(BrowseTree.LIVE_KEEP);
         }
