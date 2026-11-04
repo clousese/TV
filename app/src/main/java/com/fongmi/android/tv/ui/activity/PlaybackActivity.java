@@ -43,10 +43,8 @@ import androidx.media3.ui.danmaku.DanmakuPlayerViewController;
 
 import com.fongmi.android.tv.Constant;
 import com.fongmi.android.tv.R;
-import com.fongmi.android.tv.api.SiteApi;
 import com.fongmi.android.tv.bean.Result;
 import com.fongmi.android.tv.playback.PlaybackIntent;
-import com.fongmi.android.tv.player.LiveDanmaku;
 import com.fongmi.android.tv.player.PlayerManager;
 import com.fongmi.android.tv.player.media.PlaySpec;
 import com.fongmi.android.tv.service.PlaybackService;
@@ -75,7 +73,6 @@ import java.util.function.Consumer;
 public abstract class PlaybackActivity extends BaseActivity implements MediaController.Listener, Player.Listener, ServiceConnection {
 
     private final DanmakuPlayerViewController danmakuController = new DanmakuPlayerViewController();
-    private final LiveDanmaku liveDanmaku = new LiveDanmaku(danmakuController::post, this::onDanmakuState);
     private final List<ServiceReadyObserver<?>> serviceReadyObservers = new ArrayList<>();
     private final MutableLiveData<PlayerManager> playbackPlayerState = new MutableLiveData<>(null);
     private final List<Runnable> foreverObserverRemovers = new ArrayList<>();
@@ -103,11 +100,6 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
 
     protected MediaController controller() {
         return mController;
-    }
-
-    public void openPush(String target) {
-        if (isFinishing() || isDestroyed()) return;
-        VideoActivity.start(this, SiteApi.PUSH, "push://" + target, target);
     }
 
     protected PlaybackService service() {
@@ -808,7 +800,6 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
     }
 
     private void detachPlayerView() {
-        liveDanmaku.setDataSource(null);
         getPlayerView().setPlayer(null);
     }
 
@@ -840,25 +831,20 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
         PlayerView playerView = getPlayerView();
         playerView.setRender(PlayerSetting.getRender());
         danmakuController.setOkHttpClient(OkHttp.player());
-        danmakuController.setEnabled(DanmakuSetting.isShow());
-        liveDanmaku.setEnabled(DanmakuSetting.isShow());
+        danmakuController.setEnabled(false); // LIVE-ONLY: no danmaku
         danmakuController.setConfig(DanmakuSetting.getConfig());
         SubtitleSetting.applyStyle(playerView.getSubtitleView());
     }
 
     private void syncDanmakuSource() {
+        // LIVE-ONLY: no danmaku source is ever set.
         if (mService == null || !isOwner()) return;
-        setDanmakuSource(player().getSelectedDanmakuUri());
+        danmakuController.setDataSource(null);
     }
 
     private void setDanmakuSource(@Nullable Uri uri) {
-        boolean live = LiveDanmaku.isLive(uri);
-        liveDanmaku.setDataSource(live && getPlayerView().getPlayer() != null ? uri : null);
-        danmakuController.setDataSource(live ? null : uri);
-    }
-
-    private void onDanmakuState(String state, String msg) {
-        if (!state.isEmpty()) SpiderDebug.log("danmaku", "state=%s,msg=%s", state, msg);
+        // LIVE-ONLY: ignore any danmaku source, live sources carry no danmaku.
+        danmakuController.setDataSource(null);
     }
 
     private void releasePlaybackService() {
@@ -1016,14 +1002,13 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
 
         @Override
         public void onDanmakuEnabledChanged(boolean enabled) {
-            if (!isOwner()) return;
-            liveDanmaku.setEnabled(enabled);
-            danmakuController.setEnabled(enabled);
+            // LIVE-ONLY: danmaku stays off regardless of the old setting.
+            if (isOwner()) danmakuController.setEnabled(false);
         }
 
         @Override
         public void onDanmakuSent(String text) {
-            if (isOwner()) danmakuController.sendNow(text);
+            // LIVE-ONLY: sending danmaku is disabled.
         }
     };
 
@@ -1091,7 +1076,6 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
 
     @Override
     public void onServiceDisconnected(ComponentName name) {
-        liveDanmaku.setDataSource(null);
         releaseController();
         playbackPlayerState.setValue(null);
         pendingResume = null;
@@ -1147,7 +1131,6 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
         releaseWebView();
         clearObservers();
         detachPlayerView();
-        liveDanmaku.close();
         danmakuController.close();
         super.onDestroy();
         releasePlaybackService();

@@ -935,9 +935,8 @@ public class PlayerManager implements ParseCallback {
 
     @Nullable
     public Uri getSelectedDanmakuUri() {
-        Danmaku item = spec != null ? spec.getSelectedDanmaku() : null;
-        Uri uri = item == null ? null : item.getUri();
-        return timeshift.isReplaying() && LiveDanmaku.isLive(uri) ? null : uri;
+        // LIVE-ONLY: live sources carry no danmaku.
+        return null;
     }
 
     public void setDanmaku(Danmaku item) {
