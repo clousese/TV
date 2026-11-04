@@ -251,6 +251,9 @@ jobs:
       # Signing: the app's build.gradle reads local.properties for
       # storeFile/keyAlias/storePassword, and uses that key for both
       # debug and release. Without local.properties the build fails.
+      # NOTE (run #6): app/build.gradle resolves storeFile with
+      # file(), i.e. relative to the app module directory, so the
+      # keystore must live at app/keystore.jks, not the repo root.
       # Preferred: save a keystore once as repository secrets
       #   ANDROID_KEYSTORE_BASE64 (base64 of a .jks file),
       #   ANDROID_KEY_ALIAS, ANDROID_KEYSTORE_PASSWORD.
@@ -266,14 +269,14 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
           if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 -d > keystore.jks
+            echo "$KEYSTORE_BASE64" | base64 -d > app/keystore.jks
             ALIAS="${KEY_ALIAS:-liveonly}"
             PASS="$KEYSTORE_PASSWORD"
             echo "GENERATED_KEYSTORE=false" >> "$GITHUB_ENV"
           else
             ALIAS="liveonly"
             PASS="liveonly123"
-            keytool -genkeypair -v -keystore keystore.jks \
+            keytool -genkeypair -v -keystore app/keystore.jks \
               -alias "$ALIAS" -keyalg RSA -keysize 2048 -validity 10000 \
               -storepass "$PASS" -keypass "$PASS" \
               -dname "CN=LiveOnly, OU=LiveOnly, O=LiveOnly, C=CN"
@@ -311,5 +314,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: generated-keystore-save-as-secret
-          path: keystore.jks
+          path: app/keystore.jks
           if-no-files-found: error
