@@ -73,6 +73,11 @@ jobs:
           printf 'storeFile=keystore.jks\nkeyAlias=%s\nstorePassword=%s\n' "$ALIAS" "$PASS" > local.properties
           echo "KEY_ALIAS=$ALIAS" >> "$GITHUB_ENV"
 
+      # gradlew is stored as 100644 in the upstream git index, so a
+      # fresh checkout on Linux is not executable; chmod it here.
+      - name: Make Gradle wrapper executable
+        run: chmod +x gradlew
+
       - name: Build leanback release APK
         run: ./gradlew :app:assembleLeanbackRelease --stacktrace
 
