@@ -60,8 +60,14 @@ jobs:
       # author's local setup. No app/build.gradle change needed.
       # Compatibility classes PlayerSeekView / DiskPreloadManager
       # are injected only if the fork does not already contain
-      # them; the aar-type workaround patch is applied only if
-      # its old throw-string is still present.
+      # them; the aar-type workaround patch is applied to the
+      # fork's current aarTypeWorkaround.kt (the old
+      # missing_aar_type_workaround.gradle is also patched if
+      # present). Run #5 failed here: lib-datasource's
+      # com.hierynomus:smbj is not on that script's JAR/AAR
+      # list, so POM generation threw. The patch adds smbj
+      # (and brotli) to the JAR list and defaults any other
+      # unknown dependency to JAR instead of throwing.
       - name: Build FongMi Media3 and copy AARs into app/libs
         run: |
           set -e
@@ -174,7 +180,26 @@ jobs:
                   print(f"injected compatibility class: {path}")
           PYEOF
           python3 - <<'PYEOF'
+          import re
           from pathlib import Path
+          # Current fork (1.11): build-logic/.../aarTypeWorkaround.kt
+          kt = Path("build-logic/src/main/kotlin/androidx/media3/buildlogic/aarTypeWorkaround.kt")
+          if kt.exists():
+              content = kt.read_text(encoding="utf-8")
+              content = content.replace("val hasJar = jarOnlyDependencies.contains(dependencyName)",
+                                        "var hasJar = jarOnlyDependencies.contains(dependencyName)")
+              for dep in ('"com.hierynomus:smbj",', '"org.brotli:dec",'):
+                  if dep not in content:
+                      content = content.replace("      // go/keep-sorted start\n", "      // go/keep-sorted start\n      " + dep + "\n", 1)
+              content, n = re.subn(
+                  r"if \(!hasJar && !hasAar\) \{.*?throw IllegalStateException\(.*?\)\n      \}",
+                  "if (!hasJar && !hasAar) {\n        // Unknown dependency defaulted to JAR (FongMi fork deps)\n        hasJar = true\n      }",
+                  content, flags=re.DOTALL)
+              kt.write_text(content, encoding="utf-8")
+              print(f"patched aarTypeWorkaround.kt (throw blocks replaced: {n})")
+          else:
+              print("aarTypeWorkaround.kt not found, skip patch")
+          # Old location, kept as a fallback only.
           path = Path("missing_aar_type_workaround.gradle")
           if path.exists():
               content = path.read_text(encoding="utf-8")
