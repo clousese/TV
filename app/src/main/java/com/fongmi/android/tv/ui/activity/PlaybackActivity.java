@@ -117,7 +117,7 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
     }
 
     private DiscMenuState discMenuState() {
-        return discMenu() != null ? player().getPlayer().getDiscMenuState() : DiscMenuState.EMPTY;
+        return DiscMenuState.EMPTY; // LIVE-ONLY: stock Player has no getDiscMenuState(); live never has a disc menu
     }
 
     protected boolean hasDiscMenu() {
@@ -215,7 +215,7 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
         View surface = getPlayerView().getVideoSurfaceView();
         if (surface == null || surface.getWidth() <= 0 || surface.getHeight() <= 0) return true;
         if (event.getActionMasked() == MotionEvent.ACTION_UP && event.getEventTime() - event.getDownTime() >= ViewConfiguration.getLongPressTimeout()) onDiscMenuLongPress();
-        else if (event.getActionMasked() == MotionEvent.ACTION_DOWN || event.getActionMasked() == MotionEvent.ACTION_MOVE || event.getActionMasked() == MotionEvent.ACTION_UP) getPlayerView().dispatchDiscMenuTouchEvent(event);
+        // LIVE-ONLY: stock PlayerView has no dispatchDiscMenuTouchEvent(); disc-menu touch is dropped
         return true;
     }
 
@@ -326,8 +326,7 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
     }
 
     public void toggleDebugView() {
-        getPlayerView().toggleDebugView();
-        PlayerSetting.putDebug(getPlayerView().isDebugViewVisible());
+        // LIVE-ONLY: stock PlayerView has no debug-view toggle; no-op
     }
 
     public void onChoose() {
@@ -410,7 +409,7 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
     protected void onPreloadTransition(Object tag, long oldPositionMs, long oldDurationMs) {
     }
 
-    @Override
+    // LIVE-ONLY: stock Player.Listener has no onDiscMenuStateChanged(); kept as a plain method
     public void onDiscMenuStateChanged(@NonNull DiscMenuState state) {
         if (!isOwner()) return;
         updateKeepScreenOn(mController != null && mController.isPlaying());
@@ -805,7 +804,6 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
 
     private void hidePlayerViewForWebPlayback() {
         PlayerView playerView = getPlayerView();
-        playerView.setDiscMenuController(null);
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         View shutter = playerView.findViewById(androidx.media3.ui.R.id.exo_shutter);
         if (shutter != null) shutter.setVisibility(View.VISIBLE);
@@ -818,18 +816,16 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
         player().bindPlayerView(getPlayerView());
         danmakuController.bind(getPlayerView());
         danmakuController.setConfig(player().getDanmakuConfig());
-        getPlayerView().setDiscMenuController(discMenu());
         syncDanmakuSource();
         restoreDebugView();
     }
 
     private void restoreDebugView() {
-        if (PlayerSetting.isDebug() && !getPlayerView().isDebugViewVisible()) getPlayerView().toggleDebugView();
+        // LIVE-ONLY: stock PlayerView has no debug-view toggle; no-op
     }
 
     private void configurePlayerView() {
         PlayerView playerView = getPlayerView();
-        playerView.setRender(PlayerSetting.getRender());
         danmakuController.setOkHttpClient(OkHttp.player());
         danmakuController.setEnabled(false); // LIVE-ONLY: no danmaku
         danmakuController.setConfig(DanmakuSetting.getConfig());
@@ -1028,8 +1024,8 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
             if (pendingResume != null && (mService == null || !pendingResume.matches(player().getPlayer()))) pendingResume = null;
         }
         if (events.containsAny(Player.EVENT_TIMELINE_CHANGED, Player.EVENT_POSITION_DISCONTINUITY, Player.EVENT_MEDIA_ITEM_TRANSITION, Player.EVENT_PLAYBACK_STATE_CHANGED, Player.EVENT_AVAILABLE_COMMANDS_CHANGED)) updateKeyIncrement();
-        if (isPlaybackCurrent() && !isWebPlaybackActive() && events.containsAny(Player.EVENT_PLAYBACK_STATE_CHANGED, Player.EVENT_DISC_MENU_STATE_CHANGED, Player.EVENT_MEDIA_ITEM_TRANSITION)) {
-            boolean ended = player.getPlaybackState() == Player.STATE_ENDED && !player.getDiscMenuState().navigationPlaybackOngoing;
+        if (isPlaybackCurrent() && !isWebPlaybackActive() && events.containsAny(Player.EVENT_PLAYBACK_STATE_CHANGED, Player.EVENT_MEDIA_ITEM_TRANSITION)) {
+            boolean ended = player.getPlaybackState() == Player.STATE_ENDED && !DiscMenuState.EMPTY.navigationPlaybackOngoing; // LIVE-ONLY: stock Player has no getDiscMenuState()
             if (!ended) {
                 playbackEndHandled = false;
             } else if (!playbackEndHandled) {
@@ -1058,7 +1054,6 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
     public void onPlaybackStateChanged(int state) {
         if (!isOwner()) return;
         onStateChanged(state);
-        getPlayerView().setDiscMenuController(discMenu());
     }
 
     @Override
@@ -1096,7 +1091,6 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
         setRedirect(false);
         dispatchPendingObservers();
         updatePlaybackPlayerState();
-        getPlayerView().setDiscMenuController(discMenu());
         if (webView != null) webView.onResume();
         if (!isWebPlaybackActive()) {
             resumePlayback();
@@ -1118,7 +1112,6 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
     protected void onStop() {
         super.onStop();
         discMenuHeldKeys.clear();
-        getPlayerView().setDiscMenuController(null);
         if ((isWebPlaybackActive() || isOwner()) && (isFinishing() || PlayerSetting.isBackgroundOff())) pausePlayback();
         if (!isInPictureInPictureMode()) detachPlayerView();
     }
@@ -1126,7 +1119,6 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
     @Override
     protected void onDestroy() {
         discMenuHeldKeys.clear();
-        getPlayerView().setDiscMenuController(null);
         pendingResume = null;
         releaseWebView();
         clearObservers();

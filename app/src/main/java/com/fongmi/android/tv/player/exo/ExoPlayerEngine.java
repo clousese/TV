@@ -311,47 +311,47 @@ public class ExoPlayerEngine implements PlayerEngine, AnalyticsListener {
 
     @Override
     public SubtitleContent getSubtitleContent(TrackSelectionOverride selection) {
-        SubtitleSelectionState state = subtitles.getSubtitleSelectionState();
-        boolean isPrimary = state.isPrimary(selection);
-        if (!isPrimary && !state.isActiveSecondary(selection)) return SubtitleContent.UNSUPPORTED;
-        Format format = selection.mediaTrackGroup.getFormat(selection.trackIndices.get(0));
-        SubtitleOffsets offsets = getSubtitleOffsets();
-        return session.subtitleTranscriptSession().getContent(format, isPrimary ? offsets.primaryMs : offsets.secondaryMs);
+        // LIVE-ONLY: subtitle transcripts come from the author's private
+        // SubtitleTranscriptSession, absent from public Media3 1.11.
+        return SubtitleContent.UNSUPPORTED;
     }
 
     @Override
     public SubtitleOffsets getSubtitleOffsets() {
-        return player.getSubtitleOffsets();
+        // LIVE-ONLY: stock ExoPlayer has no getSubtitleOffsets(); fall back to
+        // the PlayerEngine default, which reads the stock text offset if available.
+        return PlayerEngine.super.getSubtitleOffsets();
     }
 
     @Override
     public void setSubtitleOffsets(SubtitleOffsets offsets) {
-        player.setSubtitleOffsets(offsets);
+        // LIVE-ONLY: stock ExoPlayer has no setSubtitleOffsets(); no-op.
+        PlayerEngine.super.setSubtitleOffsets(offsets);
     }
 
     @Override
     public boolean supportsSubtitleOffsets() {
-        return true;
+        return false; // LIVE-ONLY: no private subtitle-offset API on the stock player
     }
 
     @Override
     public boolean supportsSubtitleTranscript() {
-        return true;
+        return false; // LIVE-ONLY: no subtitle-transcript loader in public Media3 1.11
     }
 
     @Override
     public void setSubtitleContentEnabled(boolean enabled) {
-        session.subtitleTranscriptSession().setContentEnabled(enabled);
+        // LIVE-ONLY: no subtitle-transcript session in public Media3 1.11; no-op.
     }
 
     @Override
     public boolean canRetrySubtitleContent(Format format) {
-        return session.subtitleTranscriptSession().canRetryContent(format);
+        return false; // LIVE-ONLY: no transcript content to retry
     }
 
     @Override
     public void retrySubtitleContent(Format format) {
-        session.subtitleTranscriptSession().retryContent(format);
+        // LIVE-ONLY: no transcript content to retry; no-op.
     }
 
     @Override
