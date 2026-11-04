@@ -29,8 +29,15 @@ jobs:
           distribution: temurin
           java-version: "21"
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      # No setup-android step: ubuntu-latest runners already ship an
+      # Android SDK (ANDROID_HOME). android-actions/setup-android@v3
+      # failed on 2026-11-04 trying to install the obsolete 'tools'
+      # package (sdkmanager exit code 1). Gradle will download any
+      # missing platform component from the preinstalled SDK.
+      - name: Check preinstalled Android SDK
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          ls "$ANDROID_HOME" | head -20
 
       # Signing: the app's build.gradle reads local.properties for
       # storeFile/keyAlias/storePassword, and uses that key for both
