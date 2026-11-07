@@ -9,14 +9,9 @@ import androidx.viewbinding.ViewBinding;
 
 import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.databinding.DialogMpvConfBinding;
-import com.fongmi.android.tv.event.ServerEvent;
 import com.fongmi.android.tv.player.mpv.MpvConfigFile;
 import com.fongmi.android.tv.utils.Notify;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
-
-import org.greenrobot.eventbus.EventBus;
-import org.greenrobot.eventbus.Subscribe;
-import org.greenrobot.eventbus.ThreadMode;
 
 public class MpvConfDialog extends BaseAlertDialog {
 
@@ -43,7 +38,6 @@ public class MpvConfDialog extends BaseAlertDialog {
 
     @Override
     protected void initEvent() {
-        binding.phone.setOnClickListener(view -> LocalConnectDialog.show(requireActivity(), "settings"));
         binding.positive.setOnClickListener(this::onPositive);
         binding.negative.setOnClickListener(this::onNegative);
         binding.text.setOnEditorActionListener((textView, actionId, event) -> {
@@ -66,23 +60,9 @@ public class MpvConfDialog extends BaseAlertDialog {
         dismiss();
     }
 
-    @Subscribe(threadMode = ThreadMode.MAIN)
-    public void onServerEvent(ServerEvent event) {
-        if (event.type() != ServerEvent.Type.SETTING) return;
-        setText(event.text());
-        binding.positive.performClick();
-    }
-
     @Override
     public void onStart() {
         super.onStart();
         setWidth(0.55f);
-        EventBus.getDefault().register(this);
-    }
-
-    @Override
-    public void onStop() {
-        super.onStop();
-        EventBus.getDefault().unregister(this);
     }
 }

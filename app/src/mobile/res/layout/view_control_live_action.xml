@@ -37,15 +37,6 @@
             android:id="@+id/decoder"
             style="@style/Control"
             android:text="@string/decoder_action" />
-
-        <com.google.android.material.textview.MaterialTextView
-            android:id="@+id/speed"
-            style="@style/Control"
-            android:fontFeatureSettings="tnum"
-            android:text="@string/play_speed"
-            android:visibility="gone"
-            tools:visibility="visible" />
-
         <com.google.android.material.textview.MaterialTextView
             android:id="@+id/scale"
             style="@style/Control"
@@ -55,15 +46,6 @@
             android:layout_width="0dp"
             android:layout_height="0dp"
             android:layout_weight="1" />
-
-        <com.google.android.material.textview.MaterialTextView
-            android:id="@+id/text"
-            style="@style/Control"
-            android:tag="3"
-            android:text="@string/play_track_text"
-            android:visibility="gone"
-            tools:visibility="visible" />
-
         <com.google.android.material.textview.MaterialTextView
             android:id="@+id/audio"
             style="@style/Control"

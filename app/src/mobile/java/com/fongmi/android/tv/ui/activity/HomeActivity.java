@@ -1,11 +1,9 @@
 package com.fongmi.android.tv.ui.activity;
 
 import android.app.PendingIntent;
-import android.app.SearchManager;
 import android.content.Intent;
 import android.content.res.Configuration;
 import android.os.Bundle;
-import android.text.TextUtils;
 import android.view.MenuItem;
 import android.view.View;
 
@@ -21,16 +19,11 @@ import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.Updater;
 import com.fongmi.android.tv.api.config.LiveConfig;
-import com.fongmi.android.tv.api.config.VodConfig;
-import com.fongmi.android.tv.api.config.WallConfig;
-import com.fongmi.android.tv.api.node.NodeRuntime;
 import com.fongmi.android.tv.bean.Config;
 import com.fongmi.android.tv.databinding.ActivityHomeBinding;
 import com.fongmi.android.tv.db.BackupManager;
 import com.fongmi.android.tv.event.ConfigEvent;
 import com.fongmi.android.tv.event.RefreshEvent;
-import com.fongmi.android.tv.event.ServerEvent;
-import com.fongmi.android.tv.event.StateEvent;
 import com.fongmi.android.tv.impl.Callback;
 import com.fongmi.android.tv.player.extractor.Source;
 import com.fongmi.android.tv.playback.ExternalPlayback;
@@ -39,13 +32,9 @@ import com.fongmi.android.tv.server.Server;
 import com.fongmi.android.tv.service.PlaybackService;
 import com.fongmi.android.tv.ui.base.BaseActivity;
 import com.fongmi.android.tv.ui.custom.FragmentStateManager;
-import com.fongmi.android.tv.ui.fragment.ModuleFragment;
-import com.fongmi.android.tv.ui.fragment.SettingDanmakuFragment;
 import com.fongmi.android.tv.ui.fragment.SettingDecodeFragment;
 import com.fongmi.android.tv.ui.fragment.SettingFragment;
 import com.fongmi.android.tv.ui.fragment.SettingPlayerFragment;
-import com.fongmi.android.tv.ui.fragment.SettingPreloadFragment;
-import com.fongmi.android.tv.ui.fragment.VodFragment;
 import com.fongmi.android.tv.utils.Notify;
 import com.fongmi.android.tv.utils.PermissionUtil;
 import com.fongmi.android.tv.utils.Util;
@@ -55,6 +44,12 @@ import com.google.android.material.navigation.NavigationBarView;
 import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
 
+/**
+ * Live-only home: bottom navigation with live entry + settings.
+ * The VOD fragment, danmaku/preload settings fragments and module fragment
+ * were removed by the live-only strip. Fragment positions (per STRIP-PLAN
+ * §5.2): 1 = Setting, 2 = Player settings, 3 = Decode settings.
+ */
 public class HomeActivity extends BaseActivity implements NavigationBarView.OnItemSelectedListener {
 
     private static final String STATE_ACTION_HANDLED = "action_handled";
@@ -116,9 +111,6 @@ public class HomeActivity extends BaseActivity implements NavigationBarView.OnIt
     private void checkAction(Intent intent) {
         if (Intent.ACTION_SEND.equals(intent.getAction()) || Intent.ACTION_VIEW.equals(intent.getAction())) {
             ExternalPlayback.open(this, intent, this::loadLive);
-        } else if (Intent.ACTION_SEARCH.equals(intent.getAction())) {
-            String keyword = intent.getStringExtra(SearchManager.QUERY);
-            if (!TextUtils.isEmpty(keyword)) SearchActivity.start(this, keyword);
         }
     }
 
@@ -136,18 +128,14 @@ public class HomeActivity extends BaseActivity implements NavigationBarView.OnIt
 
     private void initFragment(Bundle savedInstanceState) {
         mManager = new FragmentStateManager(mBinding.container, getSupportFragmentManager(), this::createFragment);
-        if (savedInstanceState == null) change(0);
+        if (savedInstanceState == null) change(1);
     }
 
     private Fragment createFragment(int position) {
         return switch (position) {
-            case 0 -> VodFragment.newInstance();
             case 1 -> SettingFragment.newInstance();
             case 2 -> SettingPlayerFragment.newInstance();
-            case 3 -> SettingDanmakuFragment.newInstance();
-            case 4 -> SettingPreloadFragment.newInstance();
-            case 5 -> SettingDecodeFragment.newInstance();
-            case 6 -> ModuleFragment.newInstance();
+            case 3 -> SettingDecodeFragment.newInstance();
             default -> null;
         };
     }
@@ -162,9 +150,7 @@ public class HomeActivity extends BaseActivity implements NavigationBarView.OnIt
     }
 
     private void initConfig() {
-        VodConfig.get().init().load(getCallback());
-        LiveConfig.get().init().load();
-        WallConfig.get().init();
+        LiveConfig.get().init().load(getCallback());
     }
 
     private Callback getCallback() {
@@ -177,7 +163,6 @@ public class HomeActivity extends BaseActivity implements NavigationBarView.OnIt
             @Override
             public void error(String msg) {
                 onConfigReady();
-                StateEvent.empty();
                 Notify.show(msg);
             }
         };
@@ -201,7 +186,6 @@ public class HomeActivity extends BaseActivity implements NavigationBarView.OnIt
     }
 
     private void setNavigation() {
-        mBinding.navigation.getMenu().findItem(R.id.vod).setVisible(true);
         mBinding.navigation.getMenu().findItem(R.id.setting).setVisible(true);
         mBinding.navigation.getMenu().findItem(R.id.live).setVisible(LiveConfig.hasUrl());
     }
@@ -219,16 +203,13 @@ public class HomeActivity extends BaseActivity implements NavigationBarView.OnIt
     }
 
     public void change(int position) {
-        if (position < 2) mBinding.navigation.setSelectedItemId(position == 0 ? R.id.vod : R.id.setting);
+        if (position == 1) mBinding.navigation.setSelectedItemId(R.id.setting);
         else mManager.change(position);
     }
 
     @Subscribe(threadMode = ThreadMode.MAIN)
     public void onConfigEvent(ConfigEvent event) {
         switch (event.type()) {
-            case VOD:
-                RefreshEvent.home();
-                break;
             case COMMON:
                 setNavigation();
                 break;
@@ -243,16 +224,9 @@ public class HomeActivity extends BaseActivity implements NavigationBarView.OnIt
         if (event.getType() == RefreshEvent.Type.THEME) recreate();
     }
 
-    @Subscribe(threadMode = ThreadMode.MAIN)
-    public void onServerEvent(ServerEvent event) {
-        if (event.type() == ServerEvent.Type.PUSH) VideoActivity.push(this, event.text());
-        if (event.type() == ServerEvent.Type.SEARCH) SearchActivity.start(this, event.text());
-    }
-
     @Override
     public boolean onNavigationItemSelected(@NonNull MenuItem item) {
         if (item.getItemId() == R.id.setting) return mManager.change(1);
-        if (item.getItemId() == R.id.vod) return mManager.change(0);
         if (item.getItemId() == R.id.live) return openLive();
         return false;
     }
@@ -278,15 +252,16 @@ public class HomeActivity extends BaseActivity implements NavigationBarView.OnIt
 
     @Override
     protected void onBackInvoked() {
-        if (!mBinding.navigation.getMenu().findItem(R.id.vod).isVisible()) {
+        if (!mBinding.navigation.getMenu().findItem(R.id.live).isVisible()) {
             setNavigation();
-        } else if (mManager.isVisible(4) || mManager.isVisible(5)) {
+        } else if (mManager.isVisible(3)) {
             change(2);
-        } else if (mManager.isVisible(3) || mManager.isVisible(2) || mManager.isVisible(6)) {
+        } else if (mManager.isVisible(2)) {
             change(1);
         } else if (mManager.isVisible(1)) {
-            change(0);
-        } else if (mManager.canBack(0)) {
+            if (PlaybackService.isRunning()) Util.moveToBackground(this);
+            else super.onBackInvoked();
+        } else if (mManager.canBack(1)) {
             if (PlaybackService.isRunning()) Util.moveToBackground(this);
             else super.onBackInvoked();
         }
@@ -304,10 +279,8 @@ public class HomeActivity extends BaseActivity implements NavigationBarView.OnIt
     public static void releaseResources() {
         if (isRunning() || PlaybackService.isRunning()) return;
         LiveConfig.get().clear();
-        VodConfig.get().destroy();
         OkHttp.get().clear();
         Source.get().exit();
         Server.get().stop();
-        NodeRuntime.get().releaseIfUnused();
     }
 }

@@ -15,8 +15,6 @@ import androidx.viewbinding.ViewBinding;
 
 import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.api.config.LiveConfig;
-import com.fongmi.android.tv.api.config.VodConfig;
-import com.fongmi.android.tv.api.config.WallConfig;
 import com.fongmi.android.tv.bean.Config;
 import com.fongmi.android.tv.databinding.DialogConfigBinding;
 import com.fongmi.android.tv.impl.ConfigListener;
@@ -31,24 +29,14 @@ public class ConfigDialog extends BaseAlertDialog {
     private boolean append = true;
     private boolean edit;
     private String ori;
-    private int type;
+    private int type = 1;
 
     public static ConfigDialog create() {
         return new ConfigDialog();
     }
 
-    public ConfigDialog vod() {
-        type = 0;
-        return this;
-    }
-
     public ConfigDialog live() {
         type = 1;
-        return this;
-    }
-
-    public ConfigDialog wall() {
-        type = 2;
         return this;
     }
 
@@ -68,7 +56,7 @@ public class ConfigDialog extends BaseAlertDialog {
 
     @Override
     protected MaterialAlertDialogBuilder getBuilder() {
-        return builder().setTitle(type == 0 ? R.string.setting_vod : type == 1 ? R.string.setting_live : R.string.setting_wall).setView(getBinding().getRoot()).setPositiveButton(edit ? R.string.dialog_edit : R.string.dialog_positive, this::onPositive).setNegativeButton(R.string.dialog_negative, null);
+        return builder().setTitle(R.string.setting_live).setView(getBinding().getRoot()).setPositiveButton(edit ? R.string.dialog_edit : R.string.dialog_positive, this::onPositive).setNegativeButton(R.string.dialog_negative, null);
     }
 
     @Override
@@ -96,12 +84,7 @@ public class ConfigDialog extends BaseAlertDialog {
     }
 
     private Config getConfig() {
-        return switch (type) {
-            case 0 -> VodConfig.get().getConfig();
-            case 1 -> LiveConfig.get().getConfig();
-            case 2 -> WallConfig.get().getConfig();
-            default -> null;
-        };
+        return LiveConfig.get().getConfig();
     }
 
     private void onChoose(View view) {

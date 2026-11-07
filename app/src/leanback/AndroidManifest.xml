@@ -34,6 +34,12 @@
             android:screenOrientation="sensorLandscape"
             android:theme="@style/Theme.Splash">
 
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
         </activity>
 
         <activity
@@ -51,7 +57,6 @@
                 <data android:mimeType="video/*" />
                 <data android:mimeType="audio/*" />
                 <data android:mimeType="application/octet-stream" />
-                <data android:mimeType="application/x-bittorrent" />
                 <data android:mimeType="application/x-mpegurl" />
                 <data android:mimeType="application/vnd.apple.mpegurl" />
                 <data android:mimeType="application/dash+xml" />
@@ -70,7 +75,6 @@
                 <data android:mimeType="audio/*" />
                 <data android:mimeType="text/plain" />
                 <data android:mimeType="application/octet-stream" />
-                <data android:mimeType="application/x-bittorrent" />
                 <data android:mimeType="application/x-mpegurl" />
                 <data android:mimeType="application/vnd.apple.mpegurl" />
                 <data android:mimeType="application/dash+xml" />
@@ -94,7 +98,6 @@
                 <data android:mimeType="audio/*" />
                 <data android:mimeType="text/plain" />
                 <data android:mimeType="application/octet-stream" />
-                <data android:mimeType="application/x-bittorrent" />
                 <data android:mimeType="application/x-mpegurl" />
                 <data android:mimeType="application/vnd.apple.mpegurl" />
                 <data android:mimeType="application/dash+xml" />
@@ -111,7 +114,6 @@
                 <data android:mimeType="video/*" />
                 <data android:mimeType="audio/*" />
                 <data android:mimeType="application/octet-stream" />
-                <data android:mimeType="application/x-bittorrent" />
                 <data android:mimeType="application/x-mpegurl" />
                 <data android:mimeType="application/vnd.apple.mpegurl" />
                 <data android:mimeType="application/dash+xml" />
@@ -154,55 +156,22 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
 
-                <data android:scheme="smb" />
                 <data android:scheme="rtmp" />
                 <data android:scheme="rtsp" />
                 <data android:scheme="udp" />
-                <data android:scheme="ed2k" />
-                <data android:scheme="magnet" />
             </intent-filter>
         </activity>
 
-        <activity
-            android:name=".ui.activity.CastActivity"
-            android:configChanges="screenSize|smallestScreenSize|screenLayout|uiMode|orientation"
-            android:exported="true"
-            android:launchMode="singleTop"
-            android:screenOrientation="sensorLandscape">
-            <intent-filter>
-                <action android:name="${applicationId}.cast" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
-        </activity>
         <activity
             android:name=".ui.activity.LiveActivity"
             android:configChanges="screenSize|smallestScreenSize|screenLayout|uiMode|orientation"
             android:exported="true"
             android:launchMode="singleTop"
-            android:screenOrientation="sensorLandscape"
-            android:theme="@style/Theme.Splash">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
-            </intent-filter>
-        </activity>
-        <activity
-            android:name=".ui.activity.FileActivity"
-            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"
-            android:screenOrientation="sensorLandscape" />
-
-        <activity
-            android:name=".ui.activity.WebActivity"
+            android:parentActivityName=".ui.activity.HomeActivity"
             android:screenOrientation="sensorLandscape" />
 
         <activity
             android:name=".ui.activity.SettingActivity"
-            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"
-            android:screenOrientation="sensorLandscape" />
-
-        <activity
-            android:name=".ui.activity.ModuleActivity"
             android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"
             android:screenOrientation="sensorLandscape" />
 
@@ -215,15 +184,6 @@
             android:name=".ui.activity.SettingDecodeActivity"
             android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"
             android:screenOrientation="sensorLandscape" />
-
-        <activity
-            android:name=".ui.activity.SettingPreloadActivity"
-            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"
-            android:screenOrientation="sensorLandscape" />
-        <service
-            android:name=".service.DLNARendererService"
-            android:exported="false"
-            android:foregroundServiceType="mediaPlayback" />
 
         <receiver
             android:name=".receiver.BootReceiver"

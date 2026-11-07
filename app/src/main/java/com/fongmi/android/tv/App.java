@@ -19,9 +19,7 @@ import androidx.media3.mpvplayer.MpvLibrary;
 
 import com.fongmi.android.tv.player.mpv.MpvUtil;
 import com.fongmi.android.tv.receiver.RuntimeReceiver;
-import com.fongmi.android.tv.ui.dialog.SpiderDialog;
 import com.fongmi.android.tv.utils.Notify;
-import com.fongmi.android.tv.utils.RuntimeInstaller;
 import com.fongmi.hook.Hook;
 import com.github.catvod.Runtime;
 import com.github.catvod.utils.RuntimeModule;
@@ -90,7 +88,6 @@ public class App extends Application implements Application.ActivityLifecycleCal
         Runtime.set(base);
         Runtime.setActivity(App::activity);
         Runtime.setToast(text -> App.post(() -> Notify.show(text)));
-        Runtime.setDialog(SpiderDialog::show);
     }
 
     @Override
@@ -110,7 +107,7 @@ public class App extends Application implements Application.ActivityLifecycleCal
 
     private void cleanRuntime() {
         if (!isMainProcess()) return;
-        for (RuntimeModule module : RuntimeModule.values()) if (module != RuntimeModule.NODEJS) cleanRuntime(module);
+        for (RuntimeModule module : RuntimeModule.values()) cleanRuntime(module);
     }
 
     private void cleanRuntime(RuntimeModule module) {
@@ -143,8 +140,6 @@ public class App extends Application implements Application.ActivityLifecycleCal
     public void onActivityResumed(@NonNull Activity activity) {
         if (activity != activity()) this.activity = activity;
         RuntimeModule.refresh();
-        RuntimeInstaller.resumeUpdate(activity);
-        Updater.get().notifyModules();
     }
 
     @Override

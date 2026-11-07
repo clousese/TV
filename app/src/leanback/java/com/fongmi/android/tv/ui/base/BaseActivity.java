@@ -1,12 +1,9 @@
 package com.fongmi.android.tv.ui.base;
 
-import static android.view.ViewGroup.LayoutParams.MATCH_PARENT;
-
 import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.os.Bundle;
 import android.view.View;
-import android.view.ViewGroup;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
@@ -15,7 +12,6 @@ import androidx.fragment.app.FragmentActivity;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewbinding.ViewBinding;
 
-import com.fongmi.android.tv.ui.custom.CustomWallView;
 import com.fongmi.android.tv.utils.Util;
 
 import org.greenrobot.eventbus.EventBus;
@@ -39,17 +35,12 @@ public abstract class BaseActivity extends AppCompatActivity {
         initEvent();
     }
 
-    @Override
-    public void setContentView(View view) {
-        super.setContentView(view);
-        if (!customWall()) return;
-        ((ViewGroup) findViewById(android.R.id.content)).addView(new CustomWallView(this, null), 0, new ViewGroup.LayoutParams(MATCH_PARENT, MATCH_PARENT));
-    }
-
     protected FragmentActivity getActivity() {
         return this;
     }
 
+    // Wallpaper was removed with the VOD home screen; kept as a no-op hook
+    // because LiveActivity/CrashActivity still override it.
     protected boolean customWall() {
         return true;
     }

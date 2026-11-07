@@ -58,4 +58,16 @@ public class Migrations {
             database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_Track_key_type_role` ON `Track` (`key`, `type`, `role`)");
         }
     };
+
+    // Live-only strip: drop only the VOD tables (Site, History, Device).
+    // Kept tables (Keep, Live, Track, Config) and all their rows are preserved,
+    // so live sources, live favorites and settings survive the upgrade.
+    public static final Migration MIGRATION_36_37 = new Migration(36, 37) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            database.execSQL("DROP TABLE IF EXISTS `Site`");
+            database.execSQL("DROP TABLE IF EXISTS `History`");
+            database.execSQL("DROP TABLE IF EXISTS `Device`");
+        }
+    };
 }

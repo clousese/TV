@@ -433,8 +433,8 @@ public class Channel {
         result.setTimeshift(timeshift);
         result.setDrm(getDrm());
         result.setUrl(getCurrent());
-        result.setClick(getClick());
-        result.setParse(getParse());
+        result.setClick("");
+        result.setParse(0);
         result.setFormat(getFormat());
         result.setHeader(getHeaders());
         return result;

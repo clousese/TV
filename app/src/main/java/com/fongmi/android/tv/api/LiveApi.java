@@ -4,7 +4,6 @@ import androidx.annotation.NonNull;
 
 import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.api.config.LiveConfig;
-import com.fongmi.android.tv.api.loader.BaseLoader;
 import com.fongmi.android.tv.api.parser.EpgParser;
 import com.fongmi.android.tv.api.parser.LiveParser;
 import com.fongmi.android.tv.bean.Channel;
@@ -23,7 +22,7 @@ import java.time.ZoneId;
 public class LiveApi {
 
     public static void parse(@NonNull Live item) throws Exception {
-        LiveParser.start(item.recent());
+        LiveParser.start(item);
         item.getGroups().removeIf(Group::isEmpty);
         if (item.getGroups().isEmpty() || item.getGroups().get(0).isKeep()) return;
         item.getGroups().add(0, Group.create(R.string.keep));
@@ -55,7 +54,6 @@ public class LiveApi {
         if (Source.isPush(result.getUrl().v())) return result;
         result.setTimeshift(null);
         result.setUrl(item.getCatchup().format(result.getRealUrl(), data));
-        BaseLoader.get().requireProxy(result.getRealUrl());
         if (item.isRtsp()) result.getHeader().put("rtsp_range", data.getRange());
         item.applyAuth(result);
         return result;

@@ -6,7 +6,6 @@ import androidx.room.Entity;
 import androidx.room.PrimaryKey;
 
 import com.fongmi.android.tv.App;
-import com.fongmi.android.tv.api.config.LiveConfig;
 import com.fongmi.android.tv.db.AppDatabase;
 import com.fongmi.android.tv.impl.Diffable;
 import com.google.gson.annotations.SerializedName;
@@ -43,20 +42,8 @@ public class Keep implements Diffable<Keep> {
         return items == null ? Collections.emptyList() : items;
     }
 
-    public static Keep find(String key) {
-        return find(LiveConfig.get().getConfig().getId(), key);
-    }
-
-    public static Keep find(int cid, String key) {
-        return AppDatabase.get().getKeepDao().find(cid, key);
-    }
-
     public static boolean exist(String key) {
         return AppDatabase.get().getKeepDao().find(key) != null;
-    }
-
-    public static void deleteAll() {
-        AppDatabase.get().getKeepDao().delete();
     }
 
     public static void delete(int cid) {
@@ -67,27 +54,8 @@ public class Keep implements Diffable<Keep> {
         AppDatabase.get().getKeepDao().delete(key);
     }
 
-    public static List<Keep> getVod() {
-        return AppDatabase.get().getKeepDao().getVod();
-    }
-
     public static List<Keep> getLive() {
         return AppDatabase.get().getKeepDao().getLive();
-    }
-
-    public static void sync(List<Config> configs, List<Keep> targets) {
-        targets.forEach(target -> configs.stream()
-                .filter(config -> target.getCid() == config.getId()).findFirst()
-                .ifPresent(config -> target.save(Config.find(config).getId())));
-    }
-
-    public static void replace(String oldKey, String newKey) {
-        if (oldKey.equals(newKey)) return;
-        Keep keep = find(oldKey);
-        if (keep == null) return;
-        keep.delete();
-        keep.setKey(newKey);
-        keep.save();
     }
 
     @NonNull
@@ -147,27 +115,8 @@ public class Keep implements Diffable<Keep> {
         this.cid = cid;
     }
 
-    public String getSiteKey() {
-        return getKey().split(AppDatabase.SYMBOL)[0];
-    }
-
-    public String getVodId() {
-        return getKey().split(AppDatabase.SYMBOL)[1];
-    }
-
-    public void save(int cid) {
-        setKey(getSiteKey().concat(AppDatabase.SYMBOL).concat(getVodId()).concat(AppDatabase.SYMBOL) + cid);
-        setCid(cid);
-        save();
-    }
-
     public void save() {
         AppDatabase.get().getKeepDao().insertOrUpdate(this);
-    }
-
-    public Keep delete() {
-        AppDatabase.get().getKeepDao().delete(getCid(), getKey());
-        return this;
     }
 
     @Override

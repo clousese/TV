@@ -12,17 +12,12 @@ import androidx.media3.common.Format;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
-import androidx.media3.common.TrackSelectionOverride;
 import androidx.media3.common.Tracks;
-import androidx.media3.common.text.SubtitleContent;
-import androidx.media3.common.text.SubtitleOffsets;
-import androidx.media3.common.text.SubtitleSelectionState;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.analytics.AnalyticsListener;
 import androidx.media3.exoplayer.audio.AudioSink;
 import androidx.media3.exoplayer.iso.IsoDiscPreparation;
 import androidx.media3.exoplayer.iso.IsoNavigationPlayerController;
-import androidx.media3.exoplayer.source.DefaultPositionMediaSource;
 import androidx.media3.exoplayer.source.EndTrimMediaSource;
 import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.util.EventLogger;
@@ -42,10 +37,8 @@ import java.util.List;
 public class ExoPlayerEngine implements PlayerEngine, AnalyticsListener {
 
     private final ExoErrorMessageProvider provider;
-    private final ExoSubtitleController subtitles;
     private final ExoPlayerSession session;
     private final ExoPlayerEffect effect;
-    private final ExoDiskPreload preload;
     private final ExoPlayer player;
     private final IsoNavigationPlayerController navigation;
     private final ExoPlaybackLog playbackLog = new ExoPlaybackLog();
@@ -53,20 +46,14 @@ public class ExoPlayerEngine implements PlayerEngine, AnalyticsListener {
     private final Runnable logListener = () -> App.post(updateLog);
     private EventLogger eventLogger;
     private PlaySpec spec;
-    private PlaySpec preloadSpec;
-    private MediaItem preloadItem;
-    private boolean preloadAttached;
     private EndTrimMediaSource endingSource;
-    private EndTrimMediaSource preloadEndingSource;
 
     public ExoPlayerEngine(Player.Listener listener) {
         this.effect = new ExoPlayerEffect();
-        this.preload = new ExoDiskPreload();
         this.provider = new ExoErrorMessageProvider();
         this.session = new ExoPlayerSession(effect.getAudioProcessor());
         this.player = session.player();
         this.navigation = new IsoNavigationPlayerController(player);
-        this.subtitles = new ExoSubtitleController(session, navigation.getPlayer());
         this.navigation.getPlayer().addListener(listener);
         this.player.addAnalyticsListener(this);
         this.player.addAnalyticsListener(playbackLog);
@@ -159,11 +146,9 @@ public class ExoPlayerEngine implements PlayerEngine, AnalyticsListener {
             player.removeAnalyticsListener(eventLogger);
             eventLogger = null;
         }
-        subtitles.release();
         player.removeAnalyticsListener(this);
         player.removeAnalyticsListener(playbackLog);
         playbackLog.clear();
-        preload.release();
         effect.release();
         navigation.close();
         session.release();
@@ -183,19 +168,12 @@ public class ExoPlayerEngine implements PlayerEngine, AnalyticsListener {
 
     @Override
     public void setDecoderMode(@C.TrackType int trackType, DecoderMode mode) {
-        clearPreload();
         session.setDecoderMode(trackType, androidx.media3.exoplayer.DecoderMode.fromCommonDecoderMode(mode));
-    }
-
-    @Override
-    public void prepareForNewMedia() {
-        subtitles.prepareForNewMedia();
     }
 
     @Override
     public boolean setMediaItem(PlaySpec spec, long startPositionMs) {
         this.spec = spec;
-        clearPreloadQueue();
         MediaItem item = MediaItemFactory.from(this.spec);
         MediaSource source = navigation.prepareMediaSource(App.get(),
                 session.createMediaSource(item), ExoMediaSourceFactory.createDataSourceFactory(this.spec.getHeaders(), this.spec.getAuth()));
@@ -204,16 +182,13 @@ public class ExoPlayerEngine implements PlayerEngine, AnalyticsListener {
         if (endingSource != null) source = endingSource;
         effect.clearAudioEffect();
         player.setMediaSource(source, startPositionMs);
-        preload.start(player, item);
         return true;
     }
 
     @Override
     public void setEnding(long endingMs) {
         if (spec != null) spec.setEnding(endingMs);
-        if (preloadSpec != null) preloadSpec.setEnding(endingMs);
         if (endingSource != null) endingSource.setEndTrimDurationMs(endingMs);
-        if (preloadEndingSource != null) preloadEndingSource.setEndTrimDurationMs(endingMs);
     }
 
     @Override
@@ -227,147 +202,12 @@ public class ExoPlayerEngine implements PlayerEngine, AnalyticsListener {
     }
 
     @Override
-    public boolean preload(PlaySpec spec, long startPositionMs, Runnable onError) {
-        if (navigation.isStarted() || player.getMediaItemCount() == 0 || player.getPlaybackState() == Player.STATE_IDLE || player.isCurrentMediaItemLive()) return false;
-        MediaItem item = MediaItemFactory.from(spec);
-        if (IsoDiscPreparation.isIso(item)) return false;
-        clearPreload();
-        preloadSpec = spec;
-        preloadItem = item;
-        session.preload(item, startPositionMs, () -> onPreloadReady(item, spec, startPositionMs), () -> onPreloadError(item, onError));
-        return true;
-    }
-
-    private void onPreloadReady(MediaItem item, PlaySpec spec, long startPositionMs) {
-        if (preloadItem != item || preloadAttached || player.getPlaybackState() == Player.STATE_IDLE || player.getPlaybackState() == Player.STATE_ENDED) return;
-        preloadAttached = true;
-        preloadEndingSource = new EndTrimMediaSource(session.createMediaSource(item), spec.getEnding());
-        player.addMediaSource(new DefaultPositionMediaSource(preloadEndingSource, startPositionMs));
-    }
-
-    private void onPreloadError(MediaItem item, Runnable onError) {
-        if (preloadItem != item) return;
-        clearPreload();
-        onError.run();
-    }
-
-    @Override
-    public boolean seekToNext() {
-        int index = player.getCurrentMediaItemIndex() + 1;
-        if (!preloadAttached || preloadItem == null || index >= player.getMediaItemCount() || !preloadItem.equals(player.getMediaItemAt(index))) return false;
-        player.seekTo(index, session.getPreloadStartPositionMs());
-        return true;
-    }
-
-    @Override
-    @Nullable
-    public PlaySpec consumePreload(MediaItem item) {
-        if (!preloadAttached || player.getCurrentMediaItemIndex() <= 0 || preloadItem == null || !preloadItem.equals(item)) return null;
-        spec = preloadSpec;
-        endingSource = preloadEndingSource;
-        preloadEndingSource = null;
-        preloadSpec = null;
-        preloadItem = null;
-        preloadAttached = false;
-        session.clearPreload();
-        prepareForNewMedia();
-        effect.applyAudioEffect();
-        preload.start(player, item);
-        int index = player.getCurrentMediaItemIndex();
-        if (index > 0) player.removeMediaItems(0, index);
-        return spec;
-    }
-
-    @Override
-    public void clearPreload() {
-        clearPreloadQueue();
-        session.clearPreload();
-    }
-
-    private void clearPreloadQueue() {
-        preloadEndingSource = null;
-        preloadSpec = null;
-        preloadItem = null;
-        preloadAttached = false;
-        int index = player.getCurrentMediaItemIndex() + 1;
-        if (index < player.getMediaItemCount()) player.removeMediaItems(index, player.getMediaItemCount());
-    }
-
-    @Override
     public void bindPlayerView(PlayerView playerView) {
         playerView.setBackendPlayer(player);
-        subtitles.bindPlayerView(playerView);
-    }
-
-    @Override
-    public void applySubtitleStyle() {
-        subtitles.applySubtitleStyle();
-    }
-
-    @Override
-    public SubtitleSelectionState getSubtitleSelectionState() {
-        return subtitles.getSubtitleSelectionState();
-    }
-
-    @Override
-    public SubtitleContent getSubtitleContent(TrackSelectionOverride selection) {
-        // LIVE-ONLY: subtitle transcripts come from the author's private
-        // SubtitleTranscriptSession, absent from public Media3 1.11.
-        return SubtitleContent.UNSUPPORTED;
-    }
-
-    @Override
-    public SubtitleOffsets getSubtitleOffsets() {
-        // LIVE-ONLY: stock ExoPlayer has no getSubtitleOffsets(); fall back to
-        // the PlayerEngine default, which reads the stock text offset if available.
-        return PlayerEngine.super.getSubtitleOffsets();
-    }
-
-    @Override
-    public void setSubtitleOffsets(SubtitleOffsets offsets) {
-        // LIVE-ONLY: stock ExoPlayer has no setSubtitleOffsets(); no-op.
-        PlayerEngine.super.setSubtitleOffsets(offsets);
-    }
-
-    @Override
-    public boolean supportsSubtitleOffsets() {
-        return false; // LIVE-ONLY: no private subtitle-offset API on the stock player
-    }
-
-    @Override
-    public boolean supportsSubtitleTranscript() {
-        return false; // LIVE-ONLY: no subtitle-transcript loader in public Media3 1.11
-    }
-
-    @Override
-    public void setSubtitleContentEnabled(boolean enabled) {
-        // LIVE-ONLY: no subtitle-transcript session in public Media3 1.11; no-op.
-    }
-
-    @Override
-    public boolean canRetrySubtitleContent(Format format) {
-        return false; // LIVE-ONLY: no transcript content to retry
-    }
-
-    @Override
-    public void retrySubtitleContent(Format format) {
-        // LIVE-ONLY: no transcript content to retry; no-op.
-    }
-
-    @Override
-    public void setSecondarySubtitleSelection(@Nullable TrackSelectionOverride selection) {
-        subtitles.setSecondarySubtitleSelection(selection);
-    }
-
-    @Override
-    public void restoreSecondarySubtitleSelection(@Nullable TrackSelectionOverride selection) {
-        subtitles.restoreSecondarySubtitleSelection(selection);
     }
 
     @Override
     public void stop() {
-        clearPreloadQueue();
-        preload.stop();
         if (navigation.isStarted()) navigation.close();
         player.stop();
     }

@@ -5,8 +5,6 @@ import android.content.ContentResolver;
 import android.content.ContentUris;
 import android.content.Context;
 import android.content.Intent;
-import android.content.pm.PackageManager;
-import android.content.pm.ResolveInfo;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
@@ -21,14 +19,12 @@ import androidx.annotation.Nullable;
 
 import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.R;
-import com.fongmi.android.tv.ui.activity.FileActivity;
 import com.github.catvod.utils.Crypto;
 import com.github.catvod.utils.Path;
 import com.github.catvod.utils.Task;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
 
@@ -58,7 +54,7 @@ public final class FileChooser {
 
     public void show(String mimeType, String[] mimeTypes) {
         Intent intent = createIntent(mimeType, mimeTypes);
-        launcher.launch(useInternal(intent) ? intent.setClass(App.get(), FileActivity.class) : intent);
+        launcher.launch(intent);
     }
 
     private static Intent createIntent(String mimeType, String[] mimeTypes) {
@@ -69,17 +65,6 @@ public final class FileChooser {
                 .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false)
                 .putExtra("android.content.extra.SHOW_ADVANCED", true)
                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-    }
-
-    private static boolean useInternal(Intent intent) {
-        if (Util.isLeanback()) return true;
-        List<ResolveInfo> resolveInfos = App.get().getPackageManager().queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY);
-        return resolveInfos.stream().noneMatch(FileChooser::isUsable);
-    }
-
-    private static boolean isUsable(ResolveInfo resolveInfo) {
-        String packageName = resolveInfo.activityInfo == null ? null : resolveInfo.activityInfo.packageName;
-        return packageName != null && !packageName.contains("frameworkpackagestubs");
     }
 
     public static void getUri(ActivityResult result, Consumer<Uri> callback) {

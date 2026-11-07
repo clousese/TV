@@ -4,8 +4,6 @@ import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.Signature;
 import android.os.Build;
-import android.system.ErrnoException;
-import android.system.Os;
 
 import com.github.catvod.Runtime;
 import com.github.catvod.runtime.RuntimePlugin;
@@ -17,7 +15,6 @@ import org.json.JSONObject;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -29,30 +26,16 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
-import java.util.zip.ZipInputStream;
 
 import dalvik.system.DexClassLoader;
 
 public enum RuntimeModule {
 
-    PYTHON("python", "Python", "libchaquopy_java.so"),
-    NODEJS("nodejs", "Node.js", "libnode.so"),
-    QUICKJS("quickjs", "QuickJS", "libquickjs-wrapper.so"),
-    THUNDER("thunder", "Thunder", "libxl_thunder_sdk.so"),
-    MPV("mpv", "MPV", "libplayer.so"),
-    BDJ("bdj", "BD-J", "");
+    MPV("mpv", "MPV", "libplayer.so");
 
     public final String id;
     public final String title;
     private final String library;
-
-    private static final ClassLoader SPIDER_LOADER = new ClassLoader(RuntimeModule.class.getClassLoader()) {
-        @Override
-        protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
-            RuntimeModule module = moduleForClass(name);
-            return module == null ? super.loadClass(name, resolve) : module.entry(RuntimePlugin.class).getClass().getClassLoader().loadClass(name);
-        }
-    };
 
     RuntimeModule(String id, String title, String library) {
         this.id = id;
@@ -73,14 +56,7 @@ public enum RuntimeModule {
     }
 
     public String getCompatibilityId() {
-        return switch (this) {
-            case PYTHON -> "catvod-python-plugin-v4";
-            case NODEJS -> "catvod-nodejs-plugin-v3";
-            case QUICKJS -> "fongmi-quickjs-ng-0.17-v13";
-            case THUNDER -> "catvod-thunder-plugin-v1";
-            case MPV -> "mpv-jni-ffmpeg-shared-v1";
-            case BDJ -> "libbluray-1.4.1-openjdk8-zero-v1";
-        };
+        return "mpv-jni-ffmpeg-shared-v1";
     }
 
     public String getVersionName() throws IOException {
@@ -132,34 +108,14 @@ public enum RuntimeModule {
     }
 
     private Metadata prepareInstalled() throws IOException {
-        if (this == BDJ) throw new IOException("BD-J preparation belongs to the player");
         External state = external();
         Metadata metadata = state.loadedMetadata != null ? state.loadedMetadata : getMetadata();
         if (metadata == null) throw new IOException(title + " module is not installed");
-        prepare(metadata);
         return metadata;
     }
 
     public String getEntryClass() {
-        return switch (this) {
-            case PYTHON -> "com.fongmi.chaquo.RuntimeEntry";
-            case NODEJS -> "com.fongmi.nodejs.RuntimeEntry";
-            case QUICKJS -> "com.fongmi.quickjs.RuntimeEntry";
-            case THUNDER -> "com.xunlei.downloadlib.RuntimeEntry";
-            default -> "";
-        };
-    }
-
-    public static ClassLoader getSpiderClassLoader() {
-        return SPIDER_LOADER;
-    }
-
-    private static RuntimeModule moduleForClass(String name) {
-        if (name.startsWith("com.fongmi.chaquo.") || name.startsWith("com.chaquo.python.")) return PYTHON;
-        if (name.startsWith("com.fongmi.nodejs.")) return NODEJS;
-        if (name.startsWith("com.fongmi.quickjs.") && !name.startsWith("com.fongmi.quickjs.host.")) return QUICKJS;
-        if (name.startsWith("com.xunlei.downloadlib.")) return THUNDER;
-        return null;
+        return "";
     }
 
     public synchronized <T extends RuntimePlugin> T entry(Class<T> type) {
@@ -179,7 +135,6 @@ public enum RuntimeModule {
     private <T extends RuntimePlugin> T createEntry(Class<T> type, External state) throws ReflectiveOperationException, IOException {
         Metadata metadata = getMetadata();
         clean();
-        prepare(metadata);
         pinAssets(metadata);
         String nativePath = nativeDirectory(metadata).getPath() + File.pathSeparator + Runtime.context().getApplicationInfo().nativeLibraryDir
                 + File.pathSeparator + Runtime.context().getApplicationInfo().sourceDir + "!/lib/" + metadata.abi;
@@ -193,7 +148,6 @@ public enum RuntimeModule {
     public synchronized String readAsset(String path) {
         try {
             require();
-            if (this == BDJ) throw new IOException("BD-J preparation belongs to the player");
             External state = external();
             Metadata metadata = state.loadedMetadata == null ? getMetadata() : state.loadedMetadata;
             return readAsset(state, metadata, path);
@@ -214,7 +168,6 @@ public enum RuntimeModule {
     }
 
     private String optimizedDirectory(Metadata metadata) throws IOException {
-        if (this == PYTHON) return directory(metadata).getPath();
         if (Build.VERSION.SDK_INT >= 26) return null;
         File directory = new File(Runtime.context().getCodeCacheDir(), "runtimes/" + id + "/" + metadata.abi + "/" + metadata.digest);
         if (!directory.isDirectory() && !directory.mkdirs() && !directory.isDirectory()) throw new IOException("Unable to create runtime DEX cache");
@@ -222,26 +175,11 @@ public enum RuntimeModule {
     }
 
     private File directory(Metadata metadata) throws IOException {
-        if (this != PYTHON) return nativeDirectory(metadata);
-        return new File(Runtime.context().getNoBackupFilesDir(), "runtimes/" + id + "/" + metadata.abi + "/" + versionCode(metadata.info) + "-" + metadata.digest).getCanonicalFile();
+        return nativeDirectory(metadata);
     }
 
     private File nativeDirectory(Metadata metadata) {
         return new File(metadata.info.applicationInfo.sourceDir + "!/lib/" + metadata.abi);
-    }
-
-    private void prepare(Metadata metadata) throws IOException {
-        if (this != PYTHON) return;
-        File directory = directory(metadata);
-        List<Payload> assets = metadata.files.stream().filter(payload -> payload.path.startsWith("assets/")).toList();
-        if (assets.stream().allMatch(payload -> assetFile(directory, payload).isFile())) return;
-        try (ZipFile apk = new ZipFile(metadata.info.applicationInfo.sourceDir)) {
-            for (Payload payload : assets) {
-                File file = assetFile(directory, payload);
-                if (file.isFile()) continue;
-                extract(apk, file, payload);
-            }
-        }
     }
 
     private void pinAssets(Metadata metadata) throws IOException {
@@ -251,39 +189,10 @@ public enum RuntimeModule {
         state.loadedMetadata = metadata;
     }
 
-    private static File assetFile(File directory, Payload payload) {
-        return new File(directory, payload.path.substring("assets/".length()));
-    }
-
     private static ZipEntry getAssetEntry(ZipFile apk, String path) throws IOException {
         ZipEntry entry = apk.getEntry(path);
         if (entry == null) throw new IOException("Runtime asset is missing: " + path);
         return entry;
-    }
-
-    private void extract(ZipFile apk, File file, Payload payload) throws IOException {
-        ZipEntry entry = getAssetEntry(apk, payload.path);
-        File directory = file.getParentFile();
-        if (!directory.isDirectory() && !directory.mkdirs()) throw new IOException("Unable to create runtime directory");
-        File temporary = File.createTempFile("payload-", ".tmp", directory);
-        try (FileOutputStream output = new FileOutputStream(temporary)) {
-            Os.chmod(temporary.getPath(), 0400);
-            copyAsset(apk, entry, output);
-            output.getFD().sync();
-            Os.rename(temporary.getPath(), file.getPath());
-        } catch (ErrnoException e) {
-            throw new IOException("Unable to prepare runtime asset", e);
-        } finally {
-            if (!temporary.delete() && temporary.exists()) throw new IOException("Unable to remove runtime staging file");
-        }
-    }
-
-    private static void copyAsset(ZipFile apk, ZipEntry entry, FileOutputStream output) throws IOException {
-        try (InputStream input = apk.getInputStream(entry)) {
-            byte[] buffer = new byte[8192];
-            int count;
-            while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
-        }
     }
 
     public synchronized void load() {
@@ -292,7 +201,6 @@ public enum RuntimeModule {
     }
 
     public synchronized void load(Consumer<String> loader) {
-        if (this == BDJ) throw new IllegalStateException("BD-J loading belongs to the player");
         require();
         External state = external();
         if (state.loadFailure != null) throw state.loadFailure;
@@ -300,7 +208,6 @@ public enum RuntimeModule {
         try {
             Metadata metadata = state.loadedMetadata == null ? getMetadata() : state.loadedMetadata;
             verifyHostLibrary(metadata);
-            prepare(metadata);
             pinAssets(metadata);
             loadLibraries(loader, state, metadata);
             state.complete = true;
@@ -338,47 +245,16 @@ public enum RuntimeModule {
         return external().loaded;
     }
 
-    public synchronized void recordLoaded(File file, Object owner) throws IOException {
-        if (this != NODEJS) throw new IOException("Runtime does not run in a separate process");
-        if (owner == null) throw new IOException("Invalid runtime owner");
-        require();
-        External state = external();
-        Metadata metadata = state.loadedMetadata == null ? getMetadata() : state.loadedMetadata;
-        if (!file.equals(new File(nativeDirectory(metadata), library))) throw new IOException("Invalid loaded runtime file");
-        state.loaded = file;
-        state.loadedOwner = owner;
-    }
-
-    public synchronized void recordStopped(Object owner) {
-        if (this != NODEJS) throw new IllegalStateException("Runtime does not run in a separate process");
-        External state = external();
-        if (owner == null || state.loadedOwner != owner) return;
-        state.loaded = null;
-        state.loadedOwner = null;
-    }
-
     public synchronized void clean() throws IOException {
-        if (this == BDJ) return;
         External state = external();
         if (state.loaded != null || state.loadedMetadata != null) return;
-        Metadata metadata = getMetadata();
-        String keep = this != PYTHON || metadata == null ? null : metadata.abi + "/" + directory(metadata).getName();
+        getMetadata();
         File[] abis = new File(Runtime.context().getNoBackupFilesDir(), "runtimes/" + id).listFiles();
         if (abis == null) return;
-        for (File abi : abis) cleanAbi(abi, keep);
-    }
-
-    private void cleanAbi(File abi, String keep) throws IOException {
-        File[] generations = abi.listFiles();
-        if (generations == null) return;
-        for (File generation : generations) cleanGeneration(abi, generation, keep);
-    }
-
-    private void cleanGeneration(File abi, File generation, String keep) throws IOException {
-        if ((abi.getName() + "/" + generation.getName()).equals(keep)) {
-            for (String name : libraries()) delete(new File(generation, name));
-        } else {
-            delete(generation);
+        for (File abi : abis) {
+            File[] generations = abi.listFiles();
+            if (generations == null) continue;
+            for (File generation : generations) delete(generation);
         }
     }
 
@@ -424,28 +300,15 @@ public enum RuntimeModule {
         String abi = PackageAbi.get();
         verifyMetadata(json, info, abi);
         List<Payload> files = readPayloads(json, abi);
-        verifyJavaRuntime(json, info);
-        String hostCppSha256 = this == MPV ? readHostCppSha256(json.getJSONObject("hostLibraries")) : null;
+        String hostCppSha256 = readHostCppSha256(json.getJSONObject("hostLibraries"));
         String digest = hash(new ByteArrayInputStream(bytes));
-        if (this == BDJ) verifyPayloadSizes(apk, files);
         return new Metadata(info, abi, digest, List.copyOf(files), hostCppSha256);
-    }
-
-    private static void verifyPayloadSizes(ZipFile apk, List<Payload> files) throws IOException {
-        for (Payload payload : files) {
-            ZipEntry entry = apk.getEntry(payload.path);
-            if (entry == null || entry.getSize() != payload.size) throw new IOException("Invalid runtime payload size");
-        }
     }
 
     private void verifyMetadata(JSONObject json, PackageInfo info, String abi) throws IOException, JSONException {
         if (!id.equals(json.getString("module")) || !getPackageName().equals(json.getString("packageName")) || versionCode(info) != json.getLong("versionCode") || !json.getString("versionName").equals(info.versionName) || !getCompatibilityId().equals(json.getString("compatibilityId"))) throw new IOException("Incompatible runtime metadata");
         if (!abi.equals(json.getString("abi"))) throw new IOException("Incompatible runtime ABI");
-        if (this != BDJ && !("lib/" + abi + "/" + library).equals(json.getString("library"))) throw new IOException("Incompatible runtime ABI");
-    }
-
-    private void verifyJavaRuntime(JSONObject json, PackageInfo info) throws IOException, JSONException {
-        if (!getEntryClass().isEmpty()) if (!getEntryClass().equals(json.getString("entryClass")) || !Integer.valueOf(1).equals(json.opt("javaApi")) || (info.applicationInfo.flags & android.content.pm.ApplicationInfo.FLAG_HAS_CODE) == 0) throw new IOException("Incompatible Java runtime");
+        if (!("lib/" + abi + "/" + library).equals(json.getString("library"))) throw new IOException("Incompatible runtime ABI");
     }
 
     private void verifyPackage(PackageInfo info) throws IOException {
@@ -495,7 +358,7 @@ public enum RuntimeModule {
 
     private List<Payload> readPayloads(JSONObject json, String abi) throws IOException, JSONException {
         var files = new ArrayList<Payload>();
-        Payload primary = new Payload(json.getString(this == BDJ ? "archive" : "library"), json.getString("sha256"), json.getLong("size"));
+        Payload primary = new Payload(json.getString("library"), json.getString("sha256"), json.getLong("size"));
         JSONArray entries = json.optJSONArray("files");
         if (entries == null) throw new IOException("Runtime payload list is missing");
         for (int i = 0; i < entries.length(); i++) {
@@ -503,7 +366,6 @@ public enum RuntimeModule {
             files.add(new Payload(item.getString("path"), item.getString("sha256"), item.getLong("size")));
         }
         if (files.isEmpty() || files.size() > 256 || !files.contains(primary)) throw new IOException("Invalid runtime payload list");
-        if (this == BDJ && (files.size() != 1 || !"assets/bdj/runtime.zip".equals(primary.path) || json.has("library"))) throw new IOException("Invalid BD-J archive metadata");
         HashSet<String> paths = verifyPayloadMetadata(files, abi);
         verifyRequiredPayloads(paths, abi);
         return files;
@@ -522,24 +384,13 @@ public enum RuntimeModule {
         if (payload.path.startsWith("lib/")) {
             String prefix = "lib/" + abi + "/";
             if (!payload.path.startsWith(prefix) || !Arrays.asList(libraries()).contains(payload.path.substring(prefix.length()))) throw new IOException("Invalid runtime library path");
-        } else if (this == BDJ) {
-            if (!"assets/bdj/runtime.zip".equals(payload.path)) throw new IOException("Invalid BD-J archive path");
         } else {
-            String prefix = switch (this) {
-                case PYTHON -> "assets/chaquopy/";
-                case QUICKJS -> "assets/js/";
-                case NODEJS -> "assets/nodejs/";
-                default -> "";
-            };
-            if (prefix.isEmpty() || !payload.path.startsWith(prefix) || payload.path.contains("..") || payload.path.contains("\\") || payload.path.contains("//") || payload.path.endsWith("/")) throw new IOException("Invalid runtime asset path");
+            throw new IOException("Invalid runtime asset path");
         }
     }
 
     private void verifyRequiredPayloads(HashSet<String> paths, String abi) throws IOException {
-        if (this != BDJ) for (String name : libraries()) if (!paths.contains("lib/" + abi + "/" + name)) throw new IOException("Runtime library is missing");
-        if (this == PYTHON) for (String name : List.of("app.imy", "build.json", "bootstrap.imy", "stdlib-common.imy", "stdlib-" + abi + ".imy", "requirements-common.imy", "requirements-" + abi + ".imy", "cacert.pem")) if (!paths.contains("assets/chaquopy/" + name)) throw new IOException("Python asset is missing: " + name);
-        if (this == QUICKJS) for (String name : List.of("net.js", "spider.js")) if (!paths.contains("assets/js/lib/" + name)) throw new IOException("QuickJS asset is missing: " + name);
-        if (this == NODEJS && !paths.contains("assets/nodejs/bootstrap.js")) throw new IOException("Node.js bootstrap is missing");
+        for (String name : libraries()) if (!paths.contains("lib/" + abi + "/" + name)) throw new IOException("Runtime library is missing");
     }
 
     private static final class PluginLoader extends DexClassLoader {
@@ -553,9 +404,8 @@ public enum RuntimeModule {
 
         @Override
         protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
-            RuntimeModule owner = moduleForClass(name);
-            boolean owned = owner == module || name.startsWith("j$.") || name.startsWith("com.android.tools.r8.") || module == PYTHON && name.startsWith("kotlin.") || module == NODEJS && name.startsWith("fi.iki.elonen.") || module == QUICKJS && name.startsWith("org.jsoup.");
-            if (!owned) return owner == null ? super.loadClass(name, resolve) : SPIDER_LOADER.loadClass(name);
+            boolean owned = name.startsWith("j$.") || name.startsWith("com.android.tools.r8.");
+            if (!owned) return super.loadClass(name, resolve);
             synchronized (this) {
                 Class<?> type = findLoadedClass(name);
                 if (type == null) type = findClass(name);
@@ -576,40 +426,6 @@ public enum RuntimeModule {
         try (InputStream input = apk.getInputStream(entry)) {
             if (!payload.sha256.equals(hash(input))) throw new IOException("Invalid runtime payload digest");
         }
-        if ("assets/bdj/runtime.zip".equals(payload.path)) verifyBdjArchive(apk, entry, abi);
-    }
-
-    private static void verifyBdjArchive(ZipFile apk, ZipEntry archive, String abi) throws IOException {
-        String jvm = "j2re-image/lib/" + ("arm64-v8a".equals(abi) ? "aarch64" : "arm") + "/server/libjvm.so";
-        boolean complete;
-        try (ZipInputStream input = new ZipInputStream(apk.getInputStream(archive))) {
-            complete = readBdjContents(input, jvm, abi);
-        }
-        if (!complete) throw new IOException("Incomplete BD-J archive");
-    }
-
-    private static boolean readBdjContents(ZipInputStream input, String jvm, String abi) throws IOException {
-        boolean runtime = false;
-        boolean library = false;
-        ZipEntry entry;
-        var paths = new HashSet<String>();
-        while ((entry = input.getNextEntry()) != null) {
-            String path = entry.getName();
-            verifyBdjPath(path, paths);
-            if (entry.isDirectory()) continue;
-            if (path.equals(jvm)) {
-                verifyElf(input, abi);
-                library = true;
-            } else if (path.equals("j2re-image/lib/rt.jar")) {
-                runtime = input.read() != -1;
-            }
-            input.closeEntry();
-        }
-        return runtime && library;
-    }
-
-    private static void verifyBdjPath(String path, HashSet<String> paths) throws IOException {
-        if (!path.startsWith("j2re-image/") || path.contains("..") || path.contains("\\") || path.contains("//") || !paths.add(path)) throw new IOException("Invalid BD-J archive path");
     }
 
     private static void verifyElf(InputStream input, String abi) throws IOException {
@@ -666,11 +482,7 @@ public enum RuntimeModule {
     }
 
     private String[] libraries() {
-        if (this == NODEJS) return new String[]{"libnode.so", "libnodebridge.so"};
-        if (this == PYTHON) return new String[]{"libcrypto_python.so", "libssl_python.so", "libsqlite3_python.so", "libcrypto_chaquopy.so", "libssl_chaquopy.so", "libsqlite3_chaquopy.so", "libpython3.10.so", "libpython3.so", "libchaquopy_java.so"};
-        if (this == THUNDER) return new String[]{"libxl_stat.so", "libxl_thunder_sdk.so"};
-        if (this == MPV) return new String[]{"libmpv.so", "libplayer.so"};
-        return new String[]{library};
+        return new String[]{"libmpv.so", "libplayer.so"};
     }
 
     private static void delete(File file) throws IOException {
@@ -692,7 +504,6 @@ public enum RuntimeModule {
         Metadata metadata;
         Metadata loadedMetadata;
         ZipFile assets;
-        Object loadedOwner;
         File loaded;
         LinkageError loadFailure;
         boolean complete;

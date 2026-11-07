@@ -3,7 +3,6 @@ package com.fongmi.android.tv.player.effect;
 import com.fongmi.android.tv.player.effect.audio.AudioEffectBands;
 import com.fongmi.android.tv.player.engine.PlayerEngine;
 import com.fongmi.android.tv.setting.AudioSetting;
-import com.fongmi.android.tv.setting.SpeedSetting;
 import com.fongmi.android.tv.setting.VideoSetting;
 
 import java.util.function.Supplier;
@@ -11,6 +10,7 @@ import java.util.function.Supplier;
 public final class PlayerEffectManager {
 
     private final Supplier<PlayerEngine> engineSupplier;
+    private boolean skipSilenceEnabled;
 
     public PlayerEffectManager(Supplier<PlayerEngine> engineSupplier) {
         this.engineSupplier = engineSupplier;
@@ -71,11 +71,11 @@ public final class PlayerEffectManager {
     }
 
     public boolean isSkipSilence() {
-        return SpeedSetting.isSkipSilence();
+        return skipSilenceEnabled;
     }
 
     public void setSkipSilenceEnabled(boolean enabled) {
-        SpeedSetting.putSkipSilence(enabled);
+        skipSilenceEnabled = enabled;
         getEffect().setSkipSilenceEnabled(enabled);
     }
 

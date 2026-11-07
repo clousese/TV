@@ -60,14 +60,12 @@ import com.fongmi.android.tv.ui.adapter.GroupAdapter;
 import com.fongmi.android.tv.ui.custom.PinchScale;
 import com.fongmi.android.tv.ui.custom.PinchScaleFeedback;
 import com.fongmi.android.tv.ui.custom.TouchInput;
-import com.fongmi.android.tv.ui.dialog.CastDialog;
 import com.fongmi.android.tv.ui.dialog.HistoryDialog;
 import com.fongmi.android.tv.ui.dialog.InfoDialog;
 import com.fongmi.android.tv.ui.dialog.LiveDialog;
 import com.fongmi.android.tv.ui.dialog.PassDialog;
 import com.fongmi.android.tv.ui.dialog.PlayerEngineDialog;
 import com.fongmi.android.tv.ui.dialog.DecoderSettingDialog;
-import com.fongmi.android.tv.ui.dialog.SpeedSettingDialog;
 import com.fongmi.android.tv.ui.dialog.TrackDialog;
 import com.fongmi.android.tv.utils.Biometric;
 import com.fongmi.android.tv.utils.ImgUtil;
@@ -85,7 +83,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-public class LiveActivity extends PlaybackActivity implements TouchInput.Listener, Biometric.Callback, PassListener, ConfigListener, LiveListener, GroupAdapter.OnClickListener, ChannelAdapter.OnClickListener, EpgDataAdapter.OnClickListener, CastDialog.Listener, InfoDialog.Listener, LivePlaybackHost {
+public class LiveActivity extends PlaybackActivity implements TouchInput.Listener, Biometric.Callback, PassListener, ConfigListener, LiveListener, GroupAdapter.OnClickListener, ChannelAdapter.OnClickListener, EpgDataAdapter.OnClickListener, InfoDialog.Listener, LivePlaybackHost {
 
     private ActivityLiveBinding mBinding;
     private LiveViewModel mViewModel;
@@ -185,27 +183,23 @@ public class LiveActivity extends PlaybackActivity implements TouchInput.Listene
     @SuppressLint("ClickableViewAccessibility")
     protected void initEvent() {
         mBinding.control.back.setOnClickListener(view -> onBack());
-        mBinding.control.cast.setOnClickListener(view -> onCast());
         mBinding.control.info.setOnClickListener(view -> onInfo());
         mBinding.control.play.setOnClickListener(view -> checkPlay());
         mBinding.control.next.setOnClickListener(view -> nextChannel());
         mBinding.control.prev.setOnClickListener(view -> prevChannel());
         mBinding.control.right.lock.setOnClickListener(view -> onLock());
         mBinding.control.right.rotate.setOnClickListener(view -> onRotate());
-        mBinding.control.action.text.setOnClickListener(this::onTrack);
         mBinding.control.action.audio.setOnClickListener(this::onTrack);
         mBinding.control.action.video.setOnClickListener(this::onTrack);
         mBinding.control.action.home.setOnClickListener(view -> onHome());
         mBinding.control.action.line.setOnClickListener(view -> onLine());
         mBinding.control.action.scale.setOnClickListener(view -> onScale());
-        mBinding.control.action.speed.setOnClickListener(view -> onSpeed());
         mBinding.control.action.config.setOnClickListener(view -> onConfig());
         mBinding.control.action.invert.setOnClickListener(view -> onInvert());
         mBinding.control.action.across.setOnClickListener(view -> onAcross());
         mBinding.control.action.change.setOnClickListener(view -> onChange());
         mBinding.control.action.player.setOnClickListener(view -> onPlayer());
         mBinding.control.action.decoder.setOnClickListener(view -> onDecoder());
-        mBinding.control.action.speed.setOnLongClickListener(view -> onSpeedLong());
         mBinding.control.action.getRoot().setOnTouchListener(this::onActionTouch);
         mBinding.video.setOnTouchListener((view, event) -> mInput.onTouchEvent(event));
     }
@@ -357,10 +351,6 @@ public class LiveActivity extends PlaybackActivity implements TouchInput.Listene
         finish();
     }
 
-    private void onCast() {
-        CastDialog.createLive(player()).show(this);
-    }
-
     private void onInfo() {
         InfoDialog.create(player()).show(this);
     }
@@ -403,17 +393,6 @@ public class LiveActivity extends PlaybackActivity implements TouchInput.Listene
         if (mInput.isScaled()) mInput.resetScale();
         else setScale((LiveSetting.getScale() + 1) % ResUtil.getStringArray(R.array.select_scale).length);
         setR1Callback();
-    }
-
-    private void onSpeed() {
-        SpeedSettingDialog.create().show(this);
-        hideControl();
-    }
-
-    private boolean onSpeedLong() {
-        PlaybackAction.toggleSpeed(player(), mBinding.widget.message);
-        setR1Callback();
-        return true;
     }
 
     private void onConfig() {
@@ -500,7 +479,7 @@ public class LiveActivity extends PlaybackActivity implements TouchInput.Listene
     }
 
     private void showError(String text) {
-        PlaybackAction.hideSpeedHint(mBinding.widget.message);
+        mBinding.widget.message.setVisibility(View.GONE);
         mBinding.widget.error.setVisibility(View.VISIBLE);
         mBinding.widget.error.setText(text);
         hideProgress();
@@ -721,6 +700,25 @@ public class LiveActivity extends PlaybackActivity implements TouchInput.Listene
     public void stopPlaybackForRefresh() {
         stopWebPlayback();
         stopPlayer();
+    }
+
+    /**
+     * Live-only push (decision D5): play the push target as a normal live
+     * direct link. Builds a temporary channel from the target URL and plays
+     * it through the normal live playback path (webview check, then
+     * startPlayer). The temp channel is deliberately NOT installed as
+     * mChannel: it has no group, and the channel/group UI assumes a grouped
+     * channel. Overrides both PlaybackActivity.openPush (which pushed to the
+     * removed VOD activity) and the LivePlaybackHost default (which throws).
+     */
+    @Override
+    public void openPush(String target) {
+        if (isFinishing() || isDestroyed() || TextUtils.isEmpty(target)) return;
+        Channel channel = Channel.create(target);
+        channel.setUrls(new ArrayList<>(List.of(target)));
+        MediaMetadata metadata = new MediaMetadata.Builder().setTitle(target).build();
+        startPlayback(channel.result(), 0, metadata);
+        renderPlaybackMetadata(metadata);
     }
 
     @Override
@@ -1016,7 +1014,7 @@ public class LiveActivity extends PlaybackActivity implements TouchInput.Listene
 
     @Override
     protected void onWebPlaybackChanged(boolean active) {
-        PlaybackAction.setWebPlaybackMode(active, mBinding.control.action.player, mBinding.control.action.decoder, mBinding.control.action.speed, mBinding.control.action.scale, mBinding.control.action.text, mBinding.control.action.audio, mBinding.control.action.video);
+        PlaybackAction.setWebPlaybackMode(active, mBinding.control.action.player, mBinding.control.action.decoder, mBinding.control.action.scale, mBinding.control.action.audio, mBinding.control.action.video);
         if (!active) {
             setPlaybackMode();
             setTrackVisible();
@@ -1025,7 +1023,7 @@ public class LiveActivity extends PlaybackActivity implements TouchInput.Listene
 
     private void setTrackVisible() {
         if (isWebPlaybackActive()) return;
-        PlaybackAction.setTracks(player(), mBinding.control.action.text, mBinding.control.action.audio, mBinding.control.action.video, mBinding.control.action.speed);
+        PlaybackAction.setTracks(player(), mBinding.control.action.audio, mBinding.control.action.video);
     }
 
     private void prevChannel() {
@@ -1070,20 +1068,14 @@ public class LiveActivity extends PlaybackActivity implements TouchInput.Listene
     }
 
     @Override
-    public void onCasted() {
-        player().stop();
-    }
-
-    @Override
     public boolean onSpeedPressStart() {
-        if (player().isLive()) return false;
-        if (!player().isPlaying()) return false;
-        return PlaybackAction.startSpeedPress(player(), mBinding.widget.message);
+        // Long-press speed was removed with the speed setting (live-only strip).
+        return false;
     }
 
     @Override
     public void onSpeedPressEnd() {
-        PlaybackAction.endSpeedPress(player(), mBinding.widget.message);
+        // Long-press speed was removed with the speed setting (live-only strip).
     }
 
     @Override
@@ -1111,7 +1103,7 @@ public class LiveActivity extends PlaybackActivity implements TouchInput.Listene
 
     @Override
     public void onPinchScale(PinchScale.Axis axis, float scaleX, float scaleY) {
-        if (!mScaleFeedback.isActive()) PlaybackAction.hideSpeedHint(mBinding.widget.message);
+        if (!mScaleFeedback.isActive()) mBinding.widget.message.setVisibility(View.GONE);
         mScaleFeedback.show(axis, scaleX, scaleY);
     }
 
@@ -1164,7 +1156,7 @@ public class LiveActivity extends PlaybackActivity implements TouchInput.Listene
         mBinding.widget.seek.setVisibility(View.GONE);
         mBinding.widget.bright.setVisibility(View.GONE);
         mBinding.widget.volume.setVisibility(View.GONE);
-        PlaybackAction.hideSpeedHint(mBinding.widget.message);
+        mBinding.widget.message.setVisibility(View.GONE);
     }
 
     @Override

@@ -28,18 +28,8 @@ public class HistoryDialog extends BaseAlertDialog implements ConfigAdapter.OnCl
         return new HistoryDialog();
     }
 
-    public HistoryDialog vod() {
-        type = 0;
-        return this;
-    }
-
     public HistoryDialog live() {
         type = 1;
-        return this;
-    }
-
-    public HistoryDialog wall() {
-        type = 2;
         return this;
     }
 

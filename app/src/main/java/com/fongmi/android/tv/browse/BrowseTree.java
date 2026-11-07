@@ -12,7 +12,6 @@ import androidx.media3.common.MediaMetadata;
 
 import com.fongmi.android.tv.BuildConfig;
 import com.fongmi.android.tv.R;
-import com.fongmi.android.tv.bean.History;
 import com.fongmi.android.tv.bean.Result;
 import com.fongmi.android.tv.player.media.MediaItemFactory;
 import com.fongmi.android.tv.utils.ResUtil;
@@ -39,11 +38,7 @@ public class BrowseTree {
     }
 
     public static void clear() {
-        clearSearch();
-    }
-
-    public static void clearSearch() {
-        // LIVE-ONLY: search is removed, nothing to clear.
+        // Live-only: LiveBrowse holds no browse cache, nothing to clear.
     }
 
     public static MediaItem getRootItem() {
@@ -84,14 +79,12 @@ public class BrowseTree {
 
     @NonNull
     public static ImmutableList<MediaItem> search(@NonNull String query) {
-        // LIVE-ONLY: search is removed.
-        return ImmutableList.of();
+        return ImmutableList.copyOf(LiveBrowse.search(query));
     }
 
     @NonNull
     public static ImmutableList<MediaItem> getSearchResult(@NonNull String query, int page, int pageSize) {
-        // LIVE-ONLY: search is removed.
-        return ImmutableList.of();
+        return page(search(query), page, pageSize);
     }
 
     @Nullable
@@ -101,7 +94,7 @@ public class BrowseTree {
     }
 
     @NonNull
-    public static MediaItem resolveForPlayback(@NonNull MediaItem item, @Nullable History bookmark) throws Exception {
+    public static MediaItem resolveForPlayback(@NonNull MediaItem item) throws Exception {
         if (TextUtils.isEmpty(item.mediaId) && !TextUtils.isEmpty(item.requestMetadata.searchQuery)) {
             ImmutableList<MediaItem> results = search(item.requestMetadata.searchQuery);
             if (results.isEmpty()) throw new IllegalArgumentException();
@@ -112,7 +105,7 @@ public class BrowseTree {
         Result result = getBrowseResult(resolved);
         if (result == null) throw new IllegalArgumentException();
         if (result.hasMsg()) throw new IllegalStateException(result.getMsg());
-        return BrowsePlayback.withBookmark(resolved, bookmark);
+        return resolved;
     }
 
     public static boolean canNavigate(String mediaId) {
@@ -172,10 +165,6 @@ public class BrowseTree {
 
     static String artwork(@Nullable String art, @DrawableRes int fallback) {
         return TextUtils.isEmpty(art) ? icon(fallback) : art;
-    }
-
-    static MediaItem playable(@NonNull String id, @NonNull String title, @Nullable String subtitle, @Nullable String art) {
-        return build(id, false, true, MediaMetadata.MEDIA_TYPE_VIDEO, title, subtitle, artwork(art, R.drawable.ic_browse_movie), null);
     }
 
     static MediaItem stream(@NonNull BrowsePlayback playback, @NonNull String title, @Nullable String subtitle, @Nullable String art) {

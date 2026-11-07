@@ -2,7 +2,6 @@ package com.fongmi.android.tv.api.parser;
 
 import androidx.media3.common.MimeTypes;
 
-import com.fongmi.android.tv.api.loader.BaseLoader;
 import com.fongmi.android.tv.bean.Catchup;
 import com.fongmi.android.tv.bean.Channel;
 import com.fongmi.android.tv.bean.ClearKey;
@@ -60,8 +59,6 @@ public class LiveParser {
 
     private static String getText(Live live) throws Exception {
         live.setAuth(null);
-        if (!live.getApi().isEmpty()) return live.spider().liveContent(live.getUrl());
-        BaseLoader.get().requireProxy(live.getUrl());
         String url = UrlUtil.convert(live.getUrl());
         if (!url.startsWith("http")) return "";
         Map<String, String> headers = live.getHeaders();

@@ -78,10 +78,6 @@ public class Config {
         return AppDatabase.get().getConfigDao().findByType(type);
     }
 
-    public static List<Config> findUrls() {
-        return AppDatabase.get().getConfigDao().findUrlByType(0);
-    }
-
     public static void delete(String url) {
         AppDatabase.get().getConfigDao().delete(url);
     }
@@ -90,21 +86,11 @@ public class Config {
         AppDatabase.get().getConfigDao().delete(url, type);
     }
 
-    public static Config vod() {
-        Config item = AppDatabase.get().getConfigDao().findOne(0);
-        return item == null ? create(0) : item;
-    }
-
     public static Config live() {
         String url = Prefers.getString("config_1");
         Config item = TextUtils.isEmpty(url) ? null : AppDatabase.get().getConfigDao().find(url, 1);
         if (item == null) item = AppDatabase.get().getConfigDao().findOne(1);
         return item == null ? create(1) : item;
-    }
-
-    public static Config wall() {
-        Config item = AppDatabase.get().getConfigDao().findOne(2);
-        return item == null ? create(2) : item;
     }
 
     public static Config find(int id) {
@@ -282,7 +268,6 @@ public class Config {
 
     public void delete() {
         AppDatabase.get().getConfigDao().delete(getUrl(), getType());
-        History.delete(getId());
         Keep.delete(getId());
     }
 

@@ -11,12 +11,10 @@ import androidx.room.PrimaryKey;
 import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.Constant;
 import com.fongmi.android.tv.R;
-import com.fongmi.android.tv.api.loader.BaseLoader;
 import com.fongmi.android.tv.db.AppDatabase;
 import com.fongmi.android.tv.gson.ExtAdapter;
 import com.fongmi.android.tv.gson.HeaderAdapter;
 import com.fongmi.android.tv.utils.UrlUtil;
-import com.github.catvod.crawler.Spider;
 import com.github.catvod.utils.Auth;
 import com.github.catvod.utils.Task;
 import com.github.catvod.utils.Trans;
@@ -366,15 +364,6 @@ public class Live {
         setPass(item.isPass());
         setKeep(item.getKeep());
         return this;
-    }
-
-    public Live recent() {
-        BaseLoader.get().setRecent(getName(), getApi(), getJar());
-        return this;
-    }
-
-    public Spider spider() {
-        return BaseLoader.get().getSpider(getName(), getApi(), getExt(), getJar());
     }
 
     public Map<String, String> getHeaders() {

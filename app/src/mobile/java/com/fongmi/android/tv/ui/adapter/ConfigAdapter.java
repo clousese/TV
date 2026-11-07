@@ -8,8 +8,6 @@ import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.fongmi.android.tv.api.config.LiveConfig;
-import com.fongmi.android.tv.api.config.VodConfig;
-import com.fongmi.android.tv.api.config.WallConfig;
 import com.fongmi.android.tv.bean.Config;
 import com.fongmi.android.tv.databinding.AdapterConfigBinding;
 
@@ -45,9 +43,7 @@ public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder
 
     private Config getCurrentConfig(int type) {
         return switch (type) {
-            case 0 -> VodConfig.get().getConfig();
             case 1 -> LiveConfig.get().getConfig();
-            case 2 -> WallConfig.get().getConfig();
             default -> null;
         };
     }

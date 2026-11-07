@@ -2,28 +2,24 @@ package com.fongmi.android.tv.player.mpv;
 
 import android.content.pm.PackageManager;
 
-import androidx.annotation.Nullable;
+import androidx.media3.common.C;
 import androidx.media3.common.Player;
 import androidx.media3.datasource.DataSource;
+import androidx.media3.datasource.ProgressiveIsoCache;
 import androidx.media3.datasource.cache.Cache;
 import androidx.media3.datasource.cache.CacheDataSource;
 import androidx.media3.datasource.okhttp.OkHttpDataSource;
 import androidx.media3.mpvplayer.MpvAndroidOptions;
+import androidx.media3.mpvplayer.MpvDecoderMode;
 import androidx.media3.mpvplayer.MpvPlayer;
 import androidx.media3.mpvplayer.MpvPlayerConfig;
-import androidx.media3.mpvplayer.MpvSubtitleOptions;
-import androidx.media3.ui.CaptionStyleCompat;
 
 import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.player.exo.ExoMediaSourceFactory;
-import com.fongmi.android.tv.player.subtitle.AndroidFontConfig;
-import com.fongmi.android.tv.player.subtitle.ExternalFont;
 import com.fongmi.android.tv.player.track.LangUtil;
 import com.fongmi.android.tv.setting.DecodeSetting;
 import com.fongmi.android.tv.setting.PlayerSetting;
-import com.fongmi.android.tv.setting.PreloadSetting;
-import com.fongmi.android.tv.setting.SubtitleSetting;
 import com.fongmi.android.tv.utils.Notify;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.github.catvod.Proxy;
@@ -40,9 +36,7 @@ import java.util.List;
 
 public final class MpvUtil {
 
-    private static final List<String> FONT_OPTIONS = List.of("sub-font", "sub-fonts-dir", "sub-ass-style-overrides");
     private static final List<String> SCALE_OPTIONS = List.of("sub-scale", "sub-scale-signs", "secondary-sub-scale");
-    private static final List<String> CACHE_OPTIONS = List.of("cache", "cache-on-disk", "demuxer-cache-dir", "cache-secs");
     private static final List<String> PLAYER_OPTIONS = List.of("vo", "gpu-api", "gpu-context", "force-window", "audio-spdif", "android-dolby-vision-output", "demuxer-dovi-profile7");
     private static final List<String> STYLE_OPTIONS = List.of("sub-color", "sub-back-color", "sub-border-style", "sub-outline-color", "sub-outline-size", "sub-shadow-offset");
     private static final List<String> IMAGE_SUBTITLE_OPTIONS = List.of("image-subs-brightness", "image-subs-override", "image-subs-color");
@@ -90,25 +84,11 @@ public final class MpvUtil {
     }
 
     public static MpvPlayer buildPlayer(Player.Listener listener) {
-        // LIVE-ONLY: MpvDecoderMode and MpvPlayer.Builder.setVideoDecoderMode
-        // are author-private extensions absent from public Media3 1.11
-        // (the stock Builder only has setConfig/setDecode/setLooper, and
-        // there is no MpvDecoderMode file in 1.11). The stock Builder's
-        // setDecode(@C.DecodeMode) mapping from the author's common
-        // DecoderMode is not specified in public source, so no decode-mode
-        // call is made here; MPV uses its stock default decoding. Likewise
-        // setSubtitleContentLoader does not exist on the stock MpvPlayer:
-        // the transcript-content loader (built on the
-        // private DefaultSubtitleContentLoader/MpvSubtitleContentLoader) is
-        // dropped, and MPV subtitles fall back to its built-in handling.
-        MpvPlayer player = new MpvPlayer.Builder(App.get()).setConfig(buildConfig()).build();
+        MpvDecoderMode mode = MpvDecoderMode.fromCommonDecoderMode(DecodeSetting.getDecoderMode(PlayerSetting.ENGINE_MPV, C.TRACK_TYPE_VIDEO));
+        MpvPlayer player = new MpvPlayer.Builder(App.get()).setVideoDecoderMode(mode).setConfig(buildConfig()).build();
         setPreferredTextLanguages(player);
         player.addListener(listener);
         return player;
-    }
-
-    public static void applySubtitleStyle(MpvPlayer player) {
-        player.setSubtitleOptions(buildSubtitleOptions(SubtitleSetting.getFont()));
     }
 
     static List<String> getManagedOptionNames() {
@@ -118,33 +98,22 @@ public final class MpvUtil {
         options.addAll(VIDEO_EFFECT_OPTIONS);
         options.addAll(List.of("sub-pos", "secondary-sub-pos", "sub-offset-y", "secondary-sub-offset-y", "sub-ass-override", "secondary-sub-ass-override", "embeddedfonts"));
         options.addAll(SCALE_OPTIONS);
-        boolean hasFontOverride = SubtitleSetting.getFont() != null;
-        if (PreloadSetting.isEnabled()) options.addAll(CACHE_OPTIONS);
-        if (hasFontOverride) options.addAll(FONT_OPTIONS);
         options.addAll(STYLE_OPTIONS);
         options.addAll(IMAGE_SUBTITLE_OPTIONS);
-        if (SubtitleSetting.getSecondaryMode() != SubtitleSetting.SECONDARY_MODE_DEFAULT) options.add("secondary-sid");
         return options;
     }
 
     private static DataSource.Factory createDataSourceFactory() {
         Cache cache = ExoMediaSourceFactory.getCache();
         CacheDataSource.Factory factory = new CacheDataSource.Factory().setCache(cache).setUpstreamDataSourceFactory(new OkHttpDataSource.Factory(OkHttp.player())).setCacheWriteDataSinkFactory(null).setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR);
-        // LIVE-ONLY: ProgressiveIsoCache is author-private (no such class in
-        // public Media3 1.11's datasource/cache); the stock CacheDataSource
-        // factory is returned directly, as in ExoMediaSourceFactory.
-        return factory;
+        return ProgressiveIsoCache.withDiskCache(factory, cache);
     }
 
     static MpvPlayerConfig buildConfig() {
-        ExternalFont.Item font = SubtitleSetting.getFont();
         File cacheDir = Path.mpvCache();
-        File defaultFontsDirectory = ExternalFont.getDirectory();
-        AndroidFontConfig.prepare();
-        MpvPlayerConfig.Builder builder = new MpvPlayerConfig.Builder().setDataSourceFactory(createDataSourceFactory()).setDefaultFontDirectories(defaultFontsDirectory, defaultFontsDirectory).addConfigDirectory(Path.mpv()).addAndroidDefaults(buildAndroidOptions(cacheDir));
+        MpvPlayerConfig.Builder builder = new MpvPlayerConfig.Builder().setDataSourceFactory(createDataSourceFactory()).addConfigDirectory(Path.mpv()).addAndroidDefaults(buildAndroidOptions(cacheDir));
         builder.addPreInitStringOption("proxy-url", "http://127.0.0.1:" + Proxy.getPort() + "/proxy?");
-        builder.addTlsCaFileFromAsset(App.get(), ASSET_CA_FILE, Path.files(ASSET_CA_FILE)).addAndroidSubtitleOptions(App.get(), buildSubtitleOptions(font));
-        if (PreloadSetting.isEnabled()) builder.addDiskCacheOptions(cacheDir, PreloadSetting.getTimeSeconds());
+        builder.addTlsCaFileFromAsset(App.get(), ASSET_CA_FILE, Path.files(ASSET_CA_FILE));
         return builder.build();
     }
 
@@ -166,37 +135,5 @@ public final class MpvUtil {
 
     static void setPreferredTextLanguages(MpvPlayer player) {
         player.setTrackSelectionParameters(player.getTrackSelectionParameters().buildUpon().setPreferredTextLanguages(LangUtil.getPreferredTextLanguages()).build());
-    }
-
-    static MpvSubtitleOptions buildSubtitleOptions(@Nullable ExternalFont.Item font) {
-        MpvSubtitleOptions.Builder builder = new MpvSubtitleOptions.Builder();
-        if (font != null) builder.setFontsDirectory(font.directory().getAbsolutePath());
-        builder.setPosition(100.0);
-        builder.setVerticalOffset(SubtitleSetting.getPosition());
-        builder.setScale(SubtitleSetting.getAppliedScale());
-        builder.setBitmapSubtitleBrightness(SubtitleSetting.getBitmapBrightness());
-        builder.setSecondarySubtitlePosition(100.0);
-        builder.setSecondaryVerticalOffset(100.0 - SubtitleSetting.getSecondaryPosition());
-        builder.setSecondaryAssStyleOverride(SubtitleSetting.isStyleForced());
-        if (font != null) builder.setFontFamily(font.familyName());
-        setCaptionStyle(builder);
-        return builder.build();
-    }
-
-    private static void setCaptionStyle(MpvSubtitleOptions.Builder builder) {
-        if (SubtitleSetting.isCustomStyle()) {
-            builder.setCustomStyle(
-                    SubtitleSetting.getTextColor(),
-                    SubtitleSetting.getBackgroundColor(),
-                    SubtitleSetting.getEdgeType(),
-                    SubtitleSetting.getEdgeColor(),
-                    SubtitleSetting.getEdgeWidth(),
-                    SubtitleSetting.getShadow());
-        } else if (SubtitleSetting.isSystemStyle()) {
-            builder.setSystemCaptionStyle();
-        } else {
-            CaptionStyleCompat style = SubtitleSetting.getStyle();
-            builder.setDefaultStyle(style.foregroundColor, style.backgroundColor, style.edgeType, style.edgeColor, style.edgeWidth, style.shadowOffset);
-        }
     }
 }

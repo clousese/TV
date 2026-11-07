@@ -51,7 +51,7 @@ public class Notify {
     public static String getError(Throwable e) {
         RuntimeModule.MissingException missing = RuntimeModule.MissingException.find(e);
         if (missing != null) {
-            String title = missing.module == RuntimeModule.THUNDER ? ResUtil.getString(R.string.module_thunder) : missing.module.title;
+            String title = missing.module.title;
             return ResUtil.getString(R.string.error_module_missing, title);
         }
         for (Throwable current = e; current != null; current = current.getCause()) if (current instanceof ExtractException) return current.getMessage();

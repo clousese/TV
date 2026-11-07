@@ -21,21 +21,21 @@ public record SourceUrl(String id, String target) {
     }
 
     public static boolean isResolved(String url) {
-        return match(url) || TorrentUrl.match(url);
+        return match(url);
     }
 
     public static String original(String url) {
-        return match(url) ? from(url).id() : TorrentUrl.original(url);
+        return match(url) ? from(url).id() : url;
     }
 
     public static boolean same(String first, String second) {
         if (match(first) && match(second)) return from(first).equals(from(second));
-        return TorrentUrl.match(first) && TorrentUrl.match(second) && TorrentUrl.from(first).equals(TorrentUrl.from(second));
+        return first.equals(second);
     }
 
     public static String restore(String saved, String id) {
         if (match(saved)) return from(saved).id().equals(id) ? saved : null;
-        return TorrentUrl.restore(saved, id);
+        return null;
     }
 
     public String url() {

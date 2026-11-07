@@ -13,19 +13,13 @@ import androidx.viewbinding.ViewBinding;
 
 import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.api.config.LiveConfig;
-import com.fongmi.android.tv.api.config.WallConfig;
 import com.fongmi.android.tv.bean.Config;
 import com.fongmi.android.tv.databinding.DialogConfigBinding;
-import com.fongmi.android.tv.event.ServerEvent;
 import com.fongmi.android.tv.impl.ConfigListener;
 import com.fongmi.android.tv.ui.custom.CustomTextListener;
 import com.fongmi.android.tv.utils.FileChooser;
 import com.fongmi.android.tv.utils.UrlUtil;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
-
-import org.greenrobot.eventbus.EventBus;
-import org.greenrobot.eventbus.Subscribe;
-import org.greenrobot.eventbus.ThreadMode;
 
 public class ConfigDialog extends BaseAlertDialog {
 
@@ -33,7 +27,7 @@ public class ConfigDialog extends BaseAlertDialog {
     private boolean append = true;
     private boolean edit;
     private String url;
-    private int type;
+    private int type = 1;
 
     public static ConfigDialog create() {
         return new ConfigDialog();
@@ -41,11 +35,6 @@ public class ConfigDialog extends BaseAlertDialog {
 
     public ConfigDialog live() {
         type = 1;
-        return this;
-    }
-
-    public ConfigDialog wall() {
-        type = 2;
         return this;
     }
 
@@ -77,7 +66,6 @@ public class ConfigDialog extends BaseAlertDialog {
 
     @Override
     protected void initEvent() {
-        binding.phone.setOnClickListener(view -> LocalConnectDialog.show(requireActivity(), "settings"));
         binding.choose.setOnClickListener(this::onChoose);
         binding.positive.setOnClickListener(this::onPositive);
         binding.negative.setOnClickListener(this::onNegative);
@@ -94,11 +82,7 @@ public class ConfigDialog extends BaseAlertDialog {
     }
 
     private String getUrl() {
-        return switch (type) {
-            case 1 -> LiveConfig.getUrl();
-            case 2 -> WallConfig.getUrl();
-            default -> "";
-        };
+        return LiveConfig.getUrl();
     }
 
     private void onChoose(View view) {
@@ -136,25 +120,10 @@ public class ConfigDialog extends BaseAlertDialog {
         dismiss();
     }
 
-    @Subscribe(threadMode = ThreadMode.MAIN)
-    public void onServerEvent(ServerEvent event) {
-        if (event.type() != ServerEvent.Type.SETTING) return;
-        binding.name.setText(event.name());
-        binding.text.setText(event.text());
-        binding.text.setSelection(binding.text.getText().length());
-    }
-
     @Override
     public void onStart() {
         super.onStart();
         setWidth(0.55f);
-        EventBus.getDefault().register(this);
-    }
-
-    @Override
-    public void onStop() {
-        super.onStop();
-        EventBus.getDefault().unregister(this);
     }
 
     private final ActivityResultLauncher<Intent> launcher = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> FileChooser.getFileUri(result, this::setConfig));

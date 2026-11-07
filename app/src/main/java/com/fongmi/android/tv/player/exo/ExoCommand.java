@@ -4,12 +4,10 @@ import androidx.media3.common.C;
 import androidx.media3.common.MediaChapter;
 import androidx.media3.common.Player;
 import androidx.media3.common.VideoTransform;
-import androidx.media3.common.text.SubtitleOffsets;
 import androidx.media3.common.util.TrackSelectionUtil;
 import androidx.media3.ui.PlayerView;
 
 import com.fongmi.android.tv.player.PlayerManager;
-import com.fongmi.android.tv.setting.SpeedSetting;
 
 import java.util.List;
 
@@ -39,9 +37,12 @@ public final class ExoCommand {
         if (player == null || manager.isEmpty()) return Result.UNAVAILABLE;
         switch (parsed.property) {
             case "video-scale-x", "video-scale-y" -> {
-                // LIVE-ONLY: stock PlayerView has no get/setVideoTransform();
-                // per-command video scaling is dropped (aspect override below is stock and kept).
-                return Result.UNSUPPORTED;
+                if (playerView == null || playerView.getPlayer() != player || playerView.getVideoSurfaceView() == null) return Result.UNAVAILABLE;
+                VideoTransform current = playerView.getVideoTransform();
+                boolean horizontal = parsed.property.equals("video-scale-x");
+                float scale = (float) propertyValue(parsed, horizontal ? current.scaleX : current.scaleY);
+                playerView.setVideoTransform(new VideoTransform(horizontal ? scale : current.scaleX,
+                        horizontal ? current.scaleY : scale, current.panX, current.panY));
             }
             case "video-aspect-override" -> {
                 if (playerView == null || playerView.getPlayer() != player || playerView.getVideoSurfaceView() == null) return Result.UNAVAILABLE;
@@ -84,7 +85,7 @@ public final class ExoCommand {
                 double volume = propertyValue(parsed, readCurrent ? player.getVolume() * 100.0 : 0);
                 player.setVolume((float) (Math.clamp(volume, 0, 100) / 100));
             }
-            case "sub-delay", "audio-delay" -> {
+            case "audio-delay" -> {
                 return executeOffset(manager, player, parsed);
             }
             default -> {
@@ -134,17 +135,13 @@ public final class ExoCommand {
     }
 
     private static Result executeOffset(PlayerManager manager, Player player, Parsed parsed) {
-        boolean subtitle = parsed.property.equals("sub-delay");
-        if (subtitle && !manager.supportsSubtitleOffsets()) return Result.UNAVAILABLE;
-        if (!subtitle && (!player.isCommandAvailable(Player.COMMAND_SET_AUDIO_OFFSET) || (parsed.mode.equals("add") || parsed.values != null) && !player.isCommandAvailable(Player.COMMAND_GET_AUDIO_OFFSET))) return Result.UNAVAILABLE;
-        SubtitleOffsets subtitles = subtitle ? manager.getSubtitleOffsets() : null;
+        if (!player.isCommandAvailable(Player.COMMAND_SET_AUDIO_OFFSET) || (parsed.mode.equals("add") || parsed.values != null) && !player.isCommandAvailable(Player.COMMAND_GET_AUDIO_OFFSET)) return Result.UNAVAILABLE;
         long currentOffsetMs = 0;
-        if (parsed.mode.equals("add") || parsed.values != null) currentOffsetMs = subtitle ? subtitles.primaryMs : manager.getAudioOffsetMs();
+        if (parsed.mode.equals("add") || parsed.values != null) currentOffsetMs = manager.getAudioOffsetMs();
         double offset = parsed.values == null ? currentOffsetMs + parsed.number * 1000
                 : propertyValue(parsed, currentOffsetMs / 1000.0) * 1000;
         if (!isMillis(offset)) return Result.UNAVAILABLE;
-        if (subtitle) manager.setSubtitleOffsets(new SubtitleOffsets(Math.round(offset), subtitles.secondaryMs));
-        else manager.setAudioOffsetMs(Math.round(offset));
+        manager.setAudioOffsetMs(Math.round(offset));
         return Result.APPLIED;
     }
 
@@ -191,7 +188,7 @@ public final class ExoCommand {
         return switch (property) {
             case "speed", "video-scale-x", "video-scale-y", "video-aspect-override" -> (float) current == (float) value;
             case "volume" -> (float) (current / 100) == (float) (value / 100);
-            case "sub-delay", "audio-delay" -> Math.round(current * 1000) == Math.round(value * 1000);
+            case "audio-delay" -> Math.round(current * 1000) == Math.round(value * 1000);
             default -> current == value;
         };
     }
@@ -210,7 +207,7 @@ public final class ExoCommand {
         if (parts.length == 2 && parts[0].equals("cycle") && parts[1].equals("pause")) return new Parsed("pause", "cycle", 0);
         if ((parts.length == 2 || parts.length == 3) && parts[0].equals("cycle") && isAudioTrack(parts[1])) return parseAudioTrackCycle(parts);
         if (parts.length == 3 && parts[0].equals("add") && parts[1].equals("chapter")) return parseChapterStep(parts[2]);
-        if (parts.length == 3 && parts[0].equals("add") && (parts[1].equals("speed") || parts[1].equals("volume") || parts[1].equals("sub-delay") || parts[1].equals("audio-delay"))) return parseNumeric(parts[1], parts[0], parts[2]);
+        if (parts.length == 3 && parts[0].equals("add") && (parts[1].equals("speed") || parts[1].equals("volume") || parts[1].equals("audio-delay"))) return parseNumeric(parts[1], parts[0], parts[2]);
         return null;
     }
 
@@ -272,14 +269,14 @@ public final class ExoCommand {
         }
         if (property.equals("chapter")) return parseChapterIndex(text);
         if (property.equals("video-aspect-override")) return parseVideoAspectRatio(text);
-        if (!isVideoScale(property) && !property.equals("speed") && !property.equals("volume") && !property.equals("sub-delay") && !property.equals("audio-delay")) return null;
+        if (!isVideoScale(property) && !property.equals("speed") && !property.equals("volume") && !property.equals("audio-delay")) return null;
         Parsed parsed = parseNumeric(property, "set", text);
         if (parsed == null) return null;
         double value = parsed.number;
         if (isVideoScale(property) && ((float) value <= 0 || value > VideoTransform.MAX_SCALE)) return null;
-        if (property.equals("speed") && ((float) value < SpeedSetting.MIN || (float) value > SpeedSetting.MAX)) return null;
+        if (property.equals("speed") && ((float) value < 0.1f || (float) value > 5.0f)) return null;
         if (property.equals("volume") && (value < 0 || value > 100)) return null;
-        if ((property.equals("sub-delay") || property.equals("audio-delay")) && !isMillis(value * 1000)) return null;
+        if (property.equals("audio-delay") && !isMillis(value * 1000)) return null;
         return parsed;
     }
 

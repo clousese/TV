@@ -1,25 +1,28 @@
 package com.fongmi.android.tv.server.process;
 
-import com.fongmi.android.tv.api.loader.BaseLoader;
 import com.fongmi.android.tv.server.Nano;
 import com.fongmi.android.tv.server.impl.Process;
-import com.fongmi.android.tv.utils.Notify;
-import com.github.catvod.utils.RuntimeModule;
+import com.github.catvod.net.OkHttp;
+import com.github.catvod.utils.UriUtil;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import fi.iki.elonen.NanoHTTPD;
 import fi.iki.elonen.NanoHTTPD.IHTTPSession;
 import fi.iki.elonen.NanoHTTPD.Response;
 import fi.iki.elonen.NanoHTTPD.Response.IStatus;
 import fi.iki.elonen.NanoHTTPD.Response.Status;
+import okhttp3.Headers;
 
 public class Proxy implements Process {
 
     private static final String INVALID_RESPONSE = "Invalid proxy response";
+    private static final Set<String> RESERVED_KEYS = Set.of("do", "siteKey", "url");
 
     @Override
     public boolean isRequest(IHTTPSession session, String url) {
@@ -29,16 +32,38 @@ public class Proxy implements Process {
     @Override
     public Response doResponse(IHTTPSession session, String url, Map<String, String> files) {
         try {
-            Map<String, String> params = session.getParms();
-            params.putAll(session.getHeaders());
-            params.putAll(files);
-            return createResponse(BaseLoader.get().proxy(params));
+            String target = getTarget(session);
+            if (target == null || !UriUtil.scheme(target).startsWith("http")) return Nano.error(Status.BAD_REQUEST, "Missing proxy url");
+            okhttp3.Response response = OkHttp.newCall(target, getHeaders(session)).execute();
+            return createResponse(toResult(response));
         } catch (Throwable e) {
-            RuntimeModule.MissingException missing = RuntimeModule.MissingException.find(e);
-            if (missing != null) return markError(Nano.error(Status.SERVICE_UNAVAILABLE, Notify.getError(missing)));
             e.printStackTrace();
             return markError(Nano.error(Objects.toString(e.getMessage(), e.toString())));
         }
+    }
+
+    private static String getTarget(IHTTPSession session) {
+        String url = session.getParms().get("url");
+        if (url != null && !url.isEmpty()) return url;
+        String query = session.getQueryParameterString();
+        return query == null || query.isEmpty() ? null : query;
+    }
+
+    private static Map<String, String> getHeaders(IHTTPSession session) {
+        Map<String, String> headers = new HashMap<>();
+        for (Map.Entry<String, String> entry : session.getParms().entrySet()) if (!RESERVED_KEYS.contains(entry.getKey())) headers.put(entry.getKey(), entry.getValue());
+        String range = session.getHeaders().get("range");
+        if (range != null && !headers.containsKey("Range")) headers.put("Range", range);
+        return headers;
+    }
+
+    private static Object[] toResult(okhttp3.Response response) throws IOException {
+        Map<String, String> headers = new HashMap<>();
+        Headers names = response.headers();
+        for (String name : names.names()) headers.put(name, names.get(name));
+        InputStream stream = response.body() == null ? null : response.body().byteStream();
+        if (stream == null) throw new IOException(INVALID_RESPONSE);
+        return new Object[]{response.code(), response.header("Content-Type", "application/octet-stream"), stream, headers};
     }
 
     static Response createResponse(Object[] rs) {

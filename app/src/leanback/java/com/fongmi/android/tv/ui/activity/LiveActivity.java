@@ -62,7 +62,6 @@ import com.fongmi.android.tv.ui.dialog.LiveDialog;
 import com.fongmi.android.tv.ui.dialog.PassDialog;
 import com.fongmi.android.tv.ui.dialog.PlayerEngineDialog;
 import com.fongmi.android.tv.ui.dialog.DecoderSettingDialog;
-import com.fongmi.android.tv.ui.dialog.SpeedSettingDialog;
 import com.fongmi.android.tv.ui.dialog.TrackDialog;
 import com.fongmi.android.tv.utils.Clock;
 import com.fongmi.android.tv.utils.ImgUtil;
@@ -176,13 +175,11 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
         mBinding.group.setListener(this);
         mBinding.channel.setListener(this);
         mBinding.epgData.setListener(this);
-        mBinding.control.action.text.setOnClickListener(this::onTrack);
         mBinding.control.action.audio.setOnClickListener(this::onTrack);
         mBinding.control.action.video.setOnClickListener(this::onTrack);
         mBinding.control.action.home.setOnClickListener(view -> onHome());
         mBinding.control.action.line.setOnClickListener(view -> onLine());
         mBinding.control.action.scale.setOnClickListener(view -> onScale());
-        mBinding.control.action.speed.setOnClickListener(view -> onSpeed());
         mBinding.control.action.config.setOnClickListener(view -> onConfig());
         mBinding.control.action.playPause.setOnClickListener(view -> onAction());
         mBinding.control.action.invert.setOnClickListener(view -> onInvert());
@@ -190,7 +187,6 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
         mBinding.control.action.change.setOnClickListener(view -> onChange());
         mBinding.control.action.player.setOnClickListener(view -> onPlayer());
         mBinding.control.action.decoder.setOnClickListener(view -> onDecoder());
-        mBinding.control.action.speed.setOnLongClickListener(view -> onSpeedLong());
         mBinding.video.setOnTouchListener((view, event) -> mInput.onTouchEvent(event));
         mBinding.group.addOnChildViewHolderSelectedListener(new OnChildViewHolderSelectedListener() {
             @Override
@@ -333,9 +329,6 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
         mGroup.setPosition(position[1]);
         mLive.selectGroup(mGroup);
         mLive.selectChannel(mGroup.current());
-        // LIVE-ONLY: opening the app should land on full-screen playback,
-        // not on the channel list. The list can be brought back with toggle.
-        hideUI();
     }
 
     private void setPosition() {
@@ -382,16 +375,6 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
 
     private void onScale() {
         setScale((LiveSetting.getScale() + 1) % ResUtil.getStringArray(R.array.select_scale).length);
-    }
-
-    private void onSpeed() {
-        SpeedSettingDialog.create().show(this);
-        hideControl();
-    }
-
-    private boolean onSpeedLong() {
-        PlaybackAction.toggleSpeed(player(), mBinding.widget.message);
-        return true;
     }
 
     private void onConfig() {
@@ -595,7 +578,7 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
     }
 
     private void showError(String text) {
-        PlaybackAction.hideSpeedHint(mBinding.widget.message);
+        mBinding.widget.message.setVisibility(View.GONE);
         mBinding.widget.error.setVisibility(View.VISIBLE);
         mBinding.widget.text.setText(text);
         hideProgress();
@@ -820,6 +803,25 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
         stopPlayer();
     }
 
+    /**
+     * Live-only push (decision D5): play the push target as a normal live
+     * direct link. Builds a temporary channel from the target URL and plays
+     * it through the normal live playback path (webview check, then
+     * startPlayer). The temp channel is deliberately NOT installed as
+     * mChannel: it has no group, and the channel/group UI assumes a grouped
+     * channel. Overrides both PlaybackActivity.openPush (which pushed to the
+     * removed VOD activity) and the LivePlaybackHost default (which throws).
+     */
+    @Override
+    public void openPush(String target) {
+        if (isFinishing() || isDestroyed() || TextUtils.isEmpty(target)) return;
+        Channel channel = Channel.create(target);
+        channel.setUrls(new ArrayList<>(List.of(target)));
+        MediaMetadata metadata = new MediaMetadata.Builder().setTitle(target).build();
+        startPlayback(channel.result(), 0, metadata);
+        renderPlaybackMetadata(metadata);
+    }
+
     @Override
     public void startPlayback(Result result, long position, MediaMetadata metadata) {
         mInput.cancelSeek();
@@ -979,7 +981,7 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
 
     @Override
     protected void onWebPlaybackChanged(boolean active) {
-        PlaybackAction.setWebPlaybackMode(active, mBinding.control.action.player, mBinding.control.action.decoder, mBinding.control.action.speed, mBinding.control.action.scale, mBinding.control.action.text, mBinding.control.action.audio, mBinding.control.action.video);
+        PlaybackAction.setWebPlaybackMode(active, mBinding.control.action.player, mBinding.control.action.decoder, mBinding.control.action.scale, mBinding.control.action.audio, mBinding.control.action.video);
         if (!active) {
             setPlaybackMode();
             setTrackVisible();
@@ -988,7 +990,7 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
 
     private void setTrackVisible() {
         if (isWebPlaybackActive()) return;
-        PlaybackAction.setTracks(player(), mBinding.control.action.text, mBinding.control.action.audio, mBinding.control.action.video, mBinding.control.action.speed);
+        PlaybackAction.setTracks(player(), mBinding.control.action.audio, mBinding.control.action.video);
     }
 
     private void prevChannel() {
@@ -1147,6 +1149,7 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
         } else if (handleWebViewNavigation()) {
             return;
         } else {
+            if (isTaskRoot()) startActivity(new Intent(this, HomeActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP));
             super.onBackInvoked();
         }
     }

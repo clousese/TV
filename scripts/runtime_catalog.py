@@ -14,18 +14,9 @@ from zipfile import BadZipFile, ZIP_STORED, ZipFile
 
 ABIS = ("arm64-v8a", "armeabi-v7a")
 MODULES = {
-    "python": ("catvod-python-plugin-v4", "libchaquopy_java.so"),
-    "nodejs": ("catvod-nodejs-plugin-v3", "libnode.so"),
-    "quickjs": ("fongmi-quickjs-ng-0.17-v13", "libquickjs-wrapper.so"),
-    "thunder": ("catvod-thunder-plugin-v1", "libxl_thunder_sdk.so"),
-    "bdj": ("libbluray-1.4.1-openjdk8-zero-v1", None),
     "mpv": ("mpv-jni-ffmpeg-shared-v1", "libplayer.so"),
 }
 LIBRARIES = {
-    "python": ("libcrypto_python.so", "libssl_python.so", "libsqlite3_python.so", "libcrypto_chaquopy.so", "libssl_chaquopy.so", "libsqlite3_chaquopy.so", "libpython3.10.so", "libpython3.so", "libchaquopy_java.so"),
-    "nodejs": ("libnode.so", "libnodebridge.so"),
-    "quickjs": ("libquickjs-wrapper.so",),
-    "thunder": ("libxl_stat.so", "libxl_thunder_sdk.so"),
     "mpv": ("libmpv.so", "libplayer.so"),
 }
 PYTHON_ASSETS = ("app.imy", "build.json", "bootstrap.imy", "stdlib-common.imy", "stdlib-{abi}.imy", "requirements-common.imy", "requirements-{abi}.imy", "cacert.pem")

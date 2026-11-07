@@ -2,21 +2,14 @@ package com.fongmi.android.tv.player.extractor;
 
 import android.net.Uri;
 
-import com.fongmi.android.tv.api.loader.BaseLoader;
-import com.fongmi.android.tv.bean.Episode;
 import com.fongmi.android.tv.bean.Result;
 import com.fongmi.android.tv.utils.SourceUrl;
-import com.fongmi.android.tv.utils.TorrentUrl;
 import com.fongmi.android.tv.utils.UrlUtil;
 import com.github.catvod.utils.Task;
 import com.github.catvod.utils.UriUtil;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 
 public class Source {
 
@@ -25,7 +18,7 @@ public class Source {
     private int active;
 
     public Source() {
-        extractors = List.of(new Push(), new Video(), new WebView(), new Strm(), new Thunder(), new TVBus(), new YouTube());
+        extractors = List.of(new Push(), new Video(), new WebView(), new Strm(), new TVBus());
     }
 
     public static Source get() {
@@ -40,9 +33,6 @@ public class Source {
         return switch (UriUtil.scheme(uri)) {
             case "video" -> url.regionMatches(true, 0, "video://", 0, 8);
             case "webview" -> UrlUtil.isWebView(url);
-            case "magnet", "thunder", "ed2k", "ftp" -> true;
-            case "http", "https" -> YouTube.isYouTube(uri) || Thunder.Parser.match(url);
-            case "file" -> Thunder.Parser.match(url);
             default -> false;
         };
     }
@@ -72,41 +62,20 @@ public class Source {
     }
 
     public String fetch(Result result) throws Exception {
-        String url = fetch(result, result.getUrl().v());
-        if (result.getResolvedEpisodes().isEmpty()) return url;
-        result.setUrl(url);
-        Episode selected = result.getResolvedEpisodes().stream().filter(Episode::isSelected).findFirst().orElseThrow();
-        return fetch(result, selected.getUrl());
+        return fetch(result, result.getUrl().v());
     }
 
     public String fetch(Result result, String id) throws Exception {
         begin();
         try {
-            id = resolveEpisode(result, id);
-            Uri uri = TorrentUrl.match(id) ? UriUtil.uri(id) : result.getUrl().uri();
+            Uri uri = result.getUrl().uri();
             String url = result.getUrl().v();
             Extractor extractor = getExtractor(uri);
-            if (extractor != null) result.setParse(extractor instanceof Video ? 1 : 0);
             url = extractor == null ? url : extractor.fetch(result, id);
-            validateEpisode(result, id);
-            BaseLoader.get().requireProxy(url);
             return url;
         } finally {
             end();
         }
-    }
-
-    private String resolveEpisode(Result result, String id) {
-        if (!SourceUrl.match(id) || result.getResolvedEpisodes().isEmpty()) return id;
-        Episode selected = result.getResolvedEpisodes().stream().filter(episode -> SourceUrl.same(episode.getUrl(), id)).findFirst().orElseThrow(() -> new IllegalArgumentException("Source episode is no longer available"));
-        String target = SourceUrl.from(selected.getUrl()).target();
-        result.setResolvedEpisodes(List.of());
-        result.setUrl(target);
-        return target;
-    }
-
-    private void validateEpisode(Result result, String id) {
-        if (SourceUrl.match(id) && result.getResolvedEpisodes().stream().noneMatch(episode -> SourceUrl.same(episode.getUrl(), id))) throw new IllegalArgumentException("Source episode is no longer available");
     }
 
     public synchronized void stop() {

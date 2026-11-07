@@ -109,10 +109,6 @@ public class Path {
         return mkdir(new File(cache(), "epg"));
     }
 
-    public static File thunder() {
-        return mkdir(new File(cache(), "thunder"));
-    }
-
     public static File root(String name) {
         return new File(root(), name);
     }
@@ -147,10 +143,6 @@ public class Path {
 
     public static File jar(String name) {
         return new File(jar(), Crypto.md5(name).concat(".jar"));
-    }
-
-    public static File thunder(String name) {
-        return mkdir(new File(thunder(), name));
     }
 
     public static File local(String path) {

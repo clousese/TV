@@ -30,7 +30,6 @@ import androidx.annotation.RequiresApi;
 
 import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.setting.Setting;
-import com.github.catvod.crawler.SpiderDebug;
 import com.github.catvod.utils.Util;
 import com.google.common.net.HttpHeaders;
 
@@ -503,7 +502,6 @@ public final class BrowserWebView extends WebView {
 
     private void onBridgeDownload(String token, String pageUrl, String blobUrl, String fileName, String mimeType, String encoded) {
         if (!isTrustedBridgeDownload(token, pageUrl, blobUrl) || encoded == null) {
-            SpiderDebug.log(TAG, "download bridge rejected");
             return;
         }
         int generation = ++downloadGeneration;
@@ -516,7 +514,6 @@ public final class BrowserWebView extends WebView {
 
     private void onBridgeDownloadError(String token, String pageUrl, String blobUrl) {
         if (!isTrustedBridgeDownload(token, pageUrl, blobUrl)) {
-            SpiderDebug.log(TAG, "download bridge error rejected");
             return;
         }
         int generation = ++downloadGeneration;
@@ -578,7 +575,6 @@ public final class BrowserWebView extends WebView {
     private void reportDownloadError(int generation, @Nullable String key, String reason) {
         if (generation != downloadGeneration || browserListener == null) return;
         downloadGeneration++;
-        SpiderDebug.log(TAG, "download failed reason=%s", reason);
         if (key != null) {
             String script = "if (window.__fongmiDownloads) delete window.__fongmiDownloads[" + JSONObject.quote(key) + "]";
             evaluateJavascript(script, null);
@@ -774,7 +770,6 @@ public final class BrowserWebView extends WebView {
     void showChallenge() {
         if (released) return;
         if (!challengeVisible) {
-            SpiderDebug.log(TAG, "cloudflare=visible");
             reportChallenge(true);
         }
         setAlpha(1f);

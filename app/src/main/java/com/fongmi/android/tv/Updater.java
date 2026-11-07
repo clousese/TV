@@ -1,6 +1,5 @@
 package com.fongmi.android.tv;
 
-import android.os.CancellationSignal;
 import android.text.format.DateUtils;
 import android.text.format.Formatter;
 import android.view.View;
@@ -16,14 +15,11 @@ import com.fongmi.android.tv.utils.FileUtil;
 import com.fongmi.android.tv.utils.Github;
 import com.fongmi.android.tv.utils.Notify;
 import com.fongmi.android.tv.utils.ResUtil;
-import com.fongmi.android.tv.utils.RuntimeInstaller;
 import com.fongmi.android.tv.utils.UpdatePackage;
 import com.github.catvod.net.Download;
 import com.github.catvod.net.OkHttp;
 import com.github.catvod.utils.PackageAbi;
 import com.github.catvod.utils.Path;
-import com.github.catvod.utils.Prefers;
-import com.github.catvod.utils.RuntimeModule;
 import com.github.catvod.utils.Task;
 
 import org.json.JSONArray;
@@ -34,10 +30,6 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.nio.file.Files;
-import java.util.Arrays;
-import java.util.EnumMap;
-import java.util.List;
-import java.util.Map;
 
 public class Updater {
 
@@ -49,8 +41,6 @@ public class Updater {
     private boolean checking;
     private boolean downloading;
     private boolean paused;
-    private boolean modulesChecked;
-    private Map<RuntimeModule, Long> moduleUpdates;
     private int progress;
 
     private static class Loader {
@@ -65,10 +55,6 @@ public class Updater {
     }
 
     public void start(FragmentActivity activity, boolean force) {
-        if (!force && !modulesChecked) {
-            modulesChecked = true;
-            Task.execute(this::checkModules);
-        }
         if (force) {
             Notify.show(R.string.update_check);
             Setting.putUpdate(true);
@@ -82,56 +68,6 @@ public class Updater {
         if (checking || dialog.get() != null || activity.getSupportFragmentManager().findFragmentByTag(UpdateDialog.TAG) != null) return;
         checking = true;
         Task.execute(this::checkRelease);
-    }
-
-    private void checkModules() {
-        try {
-            List<RuntimeModule> installed = getInstalledModules();
-            if (installed.isEmpty()) return;
-            JSONObject catalog = RuntimeInstaller.getCatalog(new CancellationSignal());
-            if (catalog == null) return;
-            Map<RuntimeModule, Long> updates = getModuleUpdates(installed, catalog);
-            if (updates.isEmpty()) return;
-            App.post(() -> onModulesChecked(updates));
-        } catch (IOException | RuntimeException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private List<RuntimeModule> getInstalledModules() {
-        RuntimeModule.refresh();
-        return Arrays.stream(RuntimeModule.values()).filter(RuntimeModule::isInstalled).toList();
-    }
-
-    private Map<RuntimeModule, Long> getModuleUpdates(List<RuntimeModule> installed, JSONObject catalog) throws IOException {
-        Map<RuntimeModule, Long> updates = new EnumMap<>(RuntimeModule.class);
-        for (RuntimeModule module : installed) addModuleUpdate(module, catalog, updates);
-        return updates;
-    }
-
-    private void addModuleUpdate(RuntimeModule module, JSONObject catalog, Map<RuntimeModule, Long> updates) throws IOException {
-        JSONObject asset = RuntimeInstaller.getExternalAsset(module, catalog);
-        if (asset == null) return;
-        long code = module.getVersionCode();
-        long version = asset.optLong("versionCode");
-        if (code > 0 && version > code && version > Prefers.getLong("module_update_" + module.id)) updates.put(module, version);
-    }
-
-    private void onModulesChecked(Map<RuntimeModule, Long> updates) {
-        moduleUpdates = updates;
-        notifyModules();
-    }
-
-    public void notifyModules() {
-        if (moduleUpdates == null || App.activity() == null) return;
-        List<String> titles = moduleUpdates.keySet().stream().map(this::getModuleTitle).toList();
-        Notify.show(ResUtil.getString(R.string.module_update_notice, String.join(", ", titles)));
-        moduleUpdates.forEach((module, version) -> Prefers.put("module_update_" + module.id, version));
-        moduleUpdates = null;
-    }
-
-    private String getModuleTitle(RuntimeModule module) {
-        return module == RuntimeModule.THUNDER ? ResUtil.getString(R.string.module_thunder) : module.title;
     }
 
     private void checkRelease() {

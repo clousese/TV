@@ -3,7 +3,6 @@ package com.fongmi.android.tv.api.config;
 import android.text.TextUtils;
 
 import com.fongmi.android.tv.api.LiveApi;
-import com.fongmi.android.tv.api.loader.BaseLoader;
 import com.fongmi.android.tv.api.parser.LiveParser;
 import com.fongmi.android.tv.bean.Channel;
 import com.fongmi.android.tv.bean.Config;
@@ -84,8 +83,6 @@ public class LiveConfig extends BaseConfig {
 
     public LiveConfig config(Config config) {
         this.config = config;
-        if (config.isEmpty()) return this;
-        this.sync = false; // LIVE-ONLY: VOD config removed, no VOD config to sync with
         return this;
     }
 
@@ -186,7 +183,6 @@ public class LiveConfig extends BaseConfig {
 
     private void initLive(Config config, JsonObject object) {
         String spider = Json.safeString(object, "spider");
-        BaseLoader.get().parseJar(spider, false);
         setLives(Json.safeListElement(object, "lives").stream().map(e -> Live.objectFrom(e, spider)).distinct().collect(Collectors.toCollection(ArrayList::new)));
         Map<String, Live> items = Live.findAll().stream().collect(Collectors.toMap(Live::getName, Function.identity()));
         getLives().forEach(live -> live.sync(items.get(live.getName())));

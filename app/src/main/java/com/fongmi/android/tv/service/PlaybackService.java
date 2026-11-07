@@ -2,7 +2,6 @@ package com.fongmi.android.tv.service;
 
 import android.app.PendingIntent;
 import android.content.Intent;
-import android.net.Uri;
 import android.os.Binder;
 import android.os.Bundle;
 import android.os.IBinder;
@@ -26,15 +25,11 @@ import androidx.media3.session.SessionCommands;
 import androidx.media3.session.SessionError;
 import androidx.media3.session.SessionResult;
 import androidx.media3.session.SessionToken;
-import androidx.media3.ui.danmaku.DanmakuConfig;
 
 import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.BuildConfig;
 import com.fongmi.android.tv.R;
-import com.fongmi.android.tv.bean.Danmaku;
-import com.fongmi.android.tv.bean.History;
 import com.fongmi.android.tv.bean.Result;
-import com.fongmi.android.tv.bean.Sub;
 import com.fongmi.android.tv.browse.BrowsePlayback;
 import com.fongmi.android.tv.browse.BrowseTree;
 import com.fongmi.android.tv.event.ActionEvent;
@@ -43,8 +38,6 @@ import com.fongmi.android.tv.event.RefreshEvent;
 import com.fongmi.android.tv.player.PlayerManager;
 import com.fongmi.android.tv.player.extractor.Source;
 import com.fongmi.android.tv.player.media.ArtworkBitmapLoader;
-import com.fongmi.android.tv.server.Server;
-import com.fongmi.android.tv.setting.SpeedSetting;
 import com.fongmi.android.tv.ui.activity.HomeActivity;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.github.catvod.utils.Task;
@@ -69,7 +62,6 @@ public class PlaybackService extends MediaLibraryService implements MediaLibrary
 
     private static final SessionCommand COMMAND_REPEAT = new SessionCommand(ActionEvent.REPEAT, Bundle.EMPTY);
     private static final SessionCommand COMMAND_KEEP = new SessionCommand(BuildConfig.APPLICATION_ID.concat(".keep"), Bundle.EMPTY);
-    private static final SessionCommand COMMAND_SPEED = new SessionCommand(BuildConfig.APPLICATION_ID.concat(".speed"), Bundle.EMPTY);
     private static final String ACTION_MEDIA_BROWSER_SERVICE = "android.media.browse.MediaBrowserService";
 
     private static volatile boolean running;
@@ -133,7 +125,6 @@ public class PlaybackService extends MediaLibraryService implements MediaLibrary
         liveMetadata = new LiveMetadata(player, library);
         session.setSessionActivity(buildDefaultIntent());
         EventBus.getDefault().register(this);
-        Server.get().setService(this);
         setupNotification();
         addSession(session);
     }
@@ -165,7 +156,6 @@ public class PlaybackService extends MediaLibraryService implements MediaLibrary
         buttons.add(buildRepeatButton(), buildStopButton());
         Boolean kept = getKeepState();
         if (kept != null) buttons.add(new CommandButton.Builder(kept ? CommandButton.ICON_HEART_FILLED : CommandButton.ICON_HEART_UNFILLED).setSessionCommand(COMMAND_KEEP).setDisplayName(getString(kept ? R.string.auto_remove_favorite : R.string.auto_add_favorite)).build());
-        if (canSetAutoSpeed()) buttons.add(new CommandButton.Builder(CommandButton.ICON_PLAYBACK_SPEED).setSessionCommand(COMMAND_SPEED).setDisplayName(getString(R.string.play_speed_hint, SpeedSetting.format(player.getSpeed()))).build());
         session.setMediaButtonPreferences(buttons.build());
     }
 
@@ -183,11 +173,6 @@ public class PlaybackService extends MediaLibraryService implements MediaLibrary
         boolean changed = local ? navigation.owner().onKeep() : playback != null && playback.toggleKeep();
         if (changed && !local) RefreshEvent.keep();
         return changed;
-    }
-
-    private boolean canSetAutoSpeed() {
-        MediaItem item = player.getCurrentMediaItem();
-        return canRemoteSetSpeed() && (canDispatchNavigation() ? navigation.owner().canSetSpeed() : item != null && !item.mediaId.startsWith("LC:"));
     }
 
     @Override
@@ -226,22 +211,6 @@ public class PlaybackService extends MediaLibraryService implements MediaLibrary
         return hasRemotePlayback() && player.canSeek() && player.getDuration() > 0;
     }
 
-    public boolean canRemoteSetSpeed() {
-        return hasRemotePlayback() && !player.isLive() && player.getPlayer().isCommandAvailable(Player.COMMAND_SET_SPEED_AND_PITCH);
-    }
-
-    public boolean dispatchRemoteSubtitle(Sub sub) {
-        if (!hasRemotePlayback() || player.isLive()) return false;
-        player.setSub(sub);
-        return true;
-    }
-
-    public boolean dispatchRemoteDanmaku(Danmaku danmaku) {
-        if (!hasRemotePlayback() || player.isLive()) return false;
-        player.setDanmaku(danmaku);
-        return true;
-    }
-
     public boolean dispatchRemoteControl(String type, long position, float speed) {
         if (!hasRemotePlayback()) return false;
         switch (type) {
@@ -266,10 +235,6 @@ public class PlaybackService extends MediaLibraryService implements MediaLibrary
             case "seek" -> {
                 if (position < 0 || !canRemoteSeek()) return false;
                 player.seekTo(Math.min(position, player.getDuration()));
-            }
-            case "speed" -> {
-                if (!canRemoteSetSpeed()) return false;
-                player.setSpeed(speed);
             }
             default -> {
                 return false;
@@ -323,7 +288,6 @@ public class PlaybackService extends MediaLibraryService implements MediaLibrary
         releaseSession();
         player.release();
         removeForeground();
-        Server.get().setService(null);
         EventBus.getDefault().unregister(this);
         HomeActivity.releaseResources();
         super.onDestroy();
@@ -345,7 +309,6 @@ public class PlaybackService extends MediaLibraryService implements MediaLibrary
     private void stopAndClear() {
         stopPlayback();
         browsePlayback = null;
-        player.clearPreload();
         player.clearMediaItems();
     }
 
@@ -398,10 +361,7 @@ public class PlaybackService extends MediaLibraryService implements MediaLibrary
         if (session == null) return;
         if (canDispatchNavigation()) {
             navigation.owner().onSaveProgress();
-            return;
         }
-        BrowsePlayback playback = getBrowsePlayback();
-        if (playback != null) playback.saveProgress(playback.getMediaId(), player.getPosition(), player.getDuration());
     }
 
     @Nullable
@@ -419,8 +379,6 @@ public class PlaybackService extends MediaLibraryService implements MediaLibrary
         } else if (event.getType() == RefreshEvent.Type.HOME) {
             cancelNavigation();
             library.invalidate();
-            BrowseTree.clearSearch();
-            library.notifyChildrenChanged("LIVE");
         }
     }
 
@@ -431,7 +389,6 @@ public class PlaybackService extends MediaLibraryService implements MediaLibrary
         cancelNavigation();
         library.invalidate();
         if (event.isLive()) {
-            BrowseTree.clearSearch();
             library.notifyChildrenChanged("LIVE");
             library.notifyChildrenChanged(BrowseTree.LIVE_KEEP);
         }
@@ -447,7 +404,7 @@ public class PlaybackService extends MediaLibraryService implements MediaLibrary
     @Override
     public MediaSession.ConnectionResult onConnect(@NonNull MediaSession session, @NonNull MediaSession.ControllerInfo controller) {
         clients.connect(controller, getPackageName());
-        SessionCommands commands = MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS.buildUpon().add(COMMAND_REPEAT).add(COMMAND_KEEP).add(COMMAND_SPEED).build();
+        SessionCommands commands = MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS.buildUpon().add(COMMAND_REPEAT).add(COMMAND_KEEP).build();
         return new MediaLibrarySession.ConnectionResult.AcceptedResultBuilder(session).setAvailableSessionCommands(commands).build();
     }
 
@@ -463,13 +420,6 @@ public class PlaybackService extends MediaLibraryService implements MediaLibrary
             return Futures.immediateFuture(new SessionResult(SessionResult.RESULT_SUCCESS));
         }
         if (COMMAND_KEEP.customAction.equals(customCommand.customAction)) return Futures.immediateFuture(new SessionResult(toggleKeep() ? SessionResult.RESULT_SUCCESS : SessionError.ERROR_NOT_SUPPORTED));
-        if (COMMAND_SPEED.customAction.equals(customCommand.customAction)) {
-            if (!canSetAutoSpeed()) return Futures.immediateFuture(new SessionResult(SessionError.ERROR_NOT_SUPPORTED));
-            float speed = player.getSpeed();
-            player.setSpeed(speed < 1 ? 1 : speed < 1.25f ? 1.25f : speed < 1.5f ? 1.5f : speed < 2 ? 2 : 1);
-            updateMediaButtons();
-            return Futures.immediateFuture(new SessionResult(SessionResult.RESULT_SUCCESS));
-        }
         return MediaLibrarySession.Callback.super.onCustomCommand(session, controller, customCommand, args);
     }
 
@@ -574,18 +524,15 @@ public class PlaybackService extends MediaLibraryService implements MediaLibrary
         if (current == null) return;
         cancelNavigation();
         long generation = navigationGeneration;
-        BrowsePlayback playback = getBrowsePlayback();
-        History bookmark = playback == null ? null : playback.copyHistory();
-        navigationTask = Task.submit(() -> loadNextItem(current, delta, bookmark, generation));
+        navigationTask = Task.submit(() -> loadNextItem(current, delta, generation));
     }
 
-    private void loadNextItem(MediaItem current, int delta, History bookmark, long generation) {
+    private void loadNextItem(MediaItem current, int delta, long generation) {
         try {
             MediaItem next = BrowseTree.navigate(current.mediaId, delta);
             if (next == null || next.localConfiguration == null) return;
-            MediaItem selection = BrowsePlayback.withBookmark(next, bookmark);
             App.post(() -> {
-                if (session != null && generation == navigationGeneration && current.equals(player.getCurrentMediaItem())) startBrowse(selection, 0);
+                if (session != null && generation == navigationGeneration && current.equals(player.getCurrentMediaItem())) startBrowse(next, 0);
             });
         } catch (Exception e) {
             App.post(() -> {
@@ -700,7 +647,6 @@ public class PlaybackService extends MediaLibraryService implements MediaLibrary
             if (binding != null) binding.onReplaced().run();
             binding = null;
             browsePlayback = selection;
-            selection.activate(startPositionMs);
             setNavigationCallback(null, null);
             resetSessionActivity();
             liveMetadata.refresh();
@@ -762,26 +708,6 @@ public class PlaybackService extends MediaLibraryService implements MediaLibrary
     public void onPlayerRebuild(Player newPlayer) {
         sessionPlayer.replacePlayer(newPlayer);
         playerCallbacks.forEach(callback -> callback.onPlayerRebuild(newPlayer));
-    }
-
-    @Override
-    public void onDanmakuSourceChanged(@Nullable Uri uri) {
-        playerCallbacks.forEach(callback -> callback.onDanmakuSourceChanged(uri));
-    }
-
-    @Override
-    public void onDanmakuConfigChanged(DanmakuConfig config) {
-        playerCallbacks.forEach(callback -> callback.onDanmakuConfigChanged(config));
-    }
-
-    @Override
-    public void onDanmakuEnabledChanged(boolean enabled) {
-        playerCallbacks.forEach(callback -> callback.onDanmakuEnabledChanged(enabled));
-    }
-
-    @Override
-    public void onDanmakuSent(String text) {
-        playerCallbacks.forEach(callback -> callback.onDanmakuSent(text));
     }
 
     private final Player.Listener listener = new Player.Listener() {
@@ -847,11 +773,9 @@ public class PlaybackService extends MediaLibraryService implements MediaLibrary
         cancelNavigation();
         saveProgress();
         long generation = navigationGeneration;
-        BrowsePlayback playback = getBrowsePlayback();
-        History bookmark = playback == null ? null : playback.copyHistory();
         ListenableFuture<MediaSession.MediaItemsWithStartPosition> future = Task.executor().submit(() -> {
             try {
-                return resolveMediaItems(mediaItems, startIndex, startPositionMs, bookmark);
+                return resolveMediaItems(mediaItems, startIndex, startPositionMs);
             } catch (Exception e) {
                 App.post(() -> {
                     if (this.session == session && generation == navigationGeneration) sendBrowseError(session, e);
@@ -864,10 +788,10 @@ public class PlaybackService extends MediaLibraryService implements MediaLibrary
         return future;
     }
 
-    private MediaSession.MediaItemsWithStartPosition resolveMediaItems(List<MediaItem> mediaItems, int startIndex, long startPositionMs, History bookmark) throws Exception {
+    private MediaSession.MediaItemsWithStartPosition resolveMediaItems(List<MediaItem> mediaItems, int startIndex, long startPositionMs) throws Exception {
         List<MediaItem> resolved = new ArrayList<>(mediaItems);
         int index = resolved.isEmpty() ? 0 : Math.clamp(startIndex, 0, resolved.size() - 1);
-        if (!resolved.isEmpty()) resolved.set(index, BrowseTree.resolveForPlayback(resolved.get(index), bookmark));
+        if (!resolved.isEmpty()) resolved.set(index, BrowseTree.resolveForPlayback(resolved.get(index)));
         BrowsePlayback selection = resolved.isEmpty() ? null : BrowsePlayback.from(resolved.get(index));
         long resumePositionMs = selection == null ? C.TIME_UNSET : selection.getResumePositionMs();
         long positionMs = startPositionMs != C.TIME_UNSET ? startPositionMs : resumePositionMs;
@@ -907,18 +831,6 @@ public class PlaybackService extends MediaLibraryService implements MediaLibrary
         }
 
         default void onPlayerRebuild(Player player) {
-        }
-
-        default void onDanmakuSourceChanged(@Nullable Uri uri) {
-        }
-
-        default void onDanmakuConfigChanged(DanmakuConfig config) {
-        }
-
-        default void onDanmakuEnabledChanged(boolean enabled) {
-        }
-
-        default void onDanmakuSent(String text) {
         }
     }
 

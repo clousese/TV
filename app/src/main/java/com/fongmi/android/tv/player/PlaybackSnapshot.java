@@ -4,7 +4,6 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.Player;
 
-import com.github.catvod.crawler.SpiderDebug;
 
 import java.util.Objects;
 
@@ -35,7 +34,6 @@ public record PlaybackSnapshot(boolean released, String url, String key, MediaMe
             position = player.getPosition();
             duration = player.getDuration();
         } catch (Exception e) {
-            SpiderDebug.log(e);
         }
         return new PlaybackSnapshot(false, pending.url(), pending.key(), pending.metadata(), playingMetadata,
                 position, duration, player.getSpeed(), state(player));

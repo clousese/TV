@@ -8,7 +8,6 @@ import android.view.View;
 import android.webkit.WebView;
 
 import com.fongmi.android.tv.App;
-import com.github.catvod.crawler.SpiderDebug;
 
 import java.util.List;
 import java.util.function.BooleanSupplier;
@@ -68,7 +67,6 @@ final class WebViewClicker {
         down.setSource(InputDevice.SOURCE_TOUCHSCREEN);
         boolean handled = view.dispatchTouchEvent(down);
         down.recycle();
-        SpiderDebug.log(TAG, "view=%s, handled=%s, x=%s, y=%s, viewport=%sx%s", view.getClass().getSimpleName(), handled, x, y, view.getWidth(), view.getHeight());
         App.post(() -> releaseClick(view, x, y, downTime, current), UP_DELAY_MS);
     }
 

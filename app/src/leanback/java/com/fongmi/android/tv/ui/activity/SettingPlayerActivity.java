@@ -60,7 +60,6 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, B
         mBinding.render.setOnClickListener(this::setRender);
         mBinding.background.setOnClickListener(this::onBackground);
         mBinding.buffer.setOnClickListener(this::onBuffer);
-        mBinding.preload.setOnClickListener(this::onPreloadSetting);
         mBinding.ua.setOnClickListener(this::onUa);
     }
 
@@ -134,10 +133,6 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, B
     private void setLibass(View view) {
         PlayerSetting.putLibass(!PlayerSetting.isLibass());
         mBinding.libassText.setText(Setting.getSwitch(PlayerSetting.isLibass()));
-    }
-
-    private void onPreloadSetting(View view) {
-        SettingPreloadActivity.start(this);
     }
 
     private void onDecodeSetting(View view) {

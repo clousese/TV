@@ -7,11 +7,11 @@ import android.view.View;
 
 import androidx.viewbinding.ViewBinding;
 
+import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.BuildConfig;
 import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.Updater;
 import com.fongmi.android.tv.api.config.LiveConfig;
-import com.fongmi.android.tv.api.config.WallConfig;
 import com.fongmi.android.tv.bean.Config;
 import com.fongmi.android.tv.bean.Live;
 import com.fongmi.android.tv.databinding.ActivitySettingBinding;
@@ -52,12 +52,12 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Liv
     }
 
     private int getDohIndex() {
-        return Math.max(0, Doh.get(com.fongmi.android.tv.App.get()).indexOf(Doh.objectFrom(Setting.getDoh())));
+        return Math.max(0, Doh.get(App.get()).indexOf(Doh.objectFrom(Setting.getDoh())));
     }
 
     private String[] getDohList() {
         List<String> list = new ArrayList<>();
-        for (Doh item : Doh.get(com.fongmi.android.tv.App.get())) list.add(item.getName());
+        for (Doh item : Doh.get(App.get())) list.add(item.getName());
         return list.toArray(new String[0]);
     }
 
@@ -70,7 +70,6 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Liv
     protected void initView(Bundle savedInstanceState) {
         mBinding.live.requestFocus();
         mBinding.liveUrl.setText(LiveConfig.getDesc());
-        mBinding.wallUrl.setText(WallConfig.getDesc());
         mBinding.versionText.setText(BuildConfig.VERSION_NAME);
         setCacheText();
         setOtherText();
@@ -95,22 +94,16 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Liv
     protected void initEvent() {
         mBinding.doh.setOnClickListener(this::setDoh);
         mBinding.live.setOnClickListener(this::onLive);
-        mBinding.wall.setOnClickListener(this::onWall);
         mBinding.size.setOnClickListener(this::setSize);
         mBinding.cache.setOnClickListener(this::onCache);
         mBinding.backup.setOnClickListener(this::onBackup);
         mBinding.player.setOnClickListener(this::onPlayer);
-        mBinding.module.setOnClickListener(view -> ModuleActivity.start(this));
         mBinding.restore.setOnClickListener(this::onRestore);
         mBinding.version.setOnClickListener(this::onVersion);
         mBinding.live.setOnLongClickListener(this::onLiveEdit);
         mBinding.liveHome.setOnClickListener(this::onLiveHome);
-        mBinding.wall.setOnLongClickListener(this::onWallEdit);
         mBinding.incognito.setOnClickListener(this::setIncognito);
         mBinding.liveHistory.setOnClickListener(this::onLiveHistory);
-        mBinding.wallDefault.setOnClickListener(this::setWallDefault);
-        mBinding.wallRefresh.setOnClickListener(this::setWallRefresh);
-        mBinding.wallRefresh.setOnLongClickListener(this::onWallHistory);
     }
 
     @Override
@@ -120,15 +113,7 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Liv
     }
 
     private void load(Config config) {
-        switch (config.getType()) {
-            case 1:
-                LiveConfig.load(config, getCallback());
-                break;
-            case 2:
-                Setting.putWall(0);
-                WallConfig.load(config, getCallback());
-                break;
-        }
+        if (config.getType() == 1) LiveConfig.load(config, getCallback());
     }
 
     private Callback getCallback() {
@@ -161,17 +146,8 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Liv
         ConfigDialog.create().live().show(this);
     }
 
-    private void onWall(View view) {
-        ConfigDialog.create().wall().show(this);
-    }
-
     private boolean onLiveEdit(View view) {
         ConfigDialog.create().live().edit().show(this);
-        return true;
-    }
-
-    private boolean onWallEdit(View view) {
-        ConfigDialog.create().wall().edit().show(this);
         return true;
     }
 
@@ -189,22 +165,6 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Liv
 
     private void onVersion(View view) {
         Updater.get().start(this, true);
-    }
-
-    private void setWallDefault(View view) {
-        Setting.putWall(Setting.getWall() == 4 ? 1 : Setting.getWall() + 1);
-        Setting.putWallType(0);
-        ConfigEvent.wall();
-    }
-
-    private void setWallRefresh(View view) {
-        Setting.putWall(0);
-        WallConfig.get().load(getCallback());
-    }
-
-    private boolean onWallHistory(View view) {
-        HistoryDialog.create().wall().show(this);
-        return true;
     }
 
     private void setIncognito(View view) {
@@ -271,14 +231,12 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Liv
 
     private void initConfig() {
         LiveConfig.get().init().load();
-        WallConfig.get().init().load();
     }
 
     @Subscribe(threadMode = ThreadMode.MAIN)
     public void onConfigEvent(ConfigEvent event) {
         if (event.type() != ConfigEvent.Type.COMMON) return;
         mBinding.liveUrl.setText(LiveConfig.getDesc());
-        mBinding.wallUrl.setText(WallConfig.getDesc());
     }
 
 }

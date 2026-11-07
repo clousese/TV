@@ -8,16 +8,11 @@ import androidx.fragment.app.FragmentActivity;
 import androidx.viewbinding.ViewBinding;
 
 import com.fongmi.android.tv.databinding.DialogSingleInputBinding;
-import com.fongmi.android.tv.event.ServerEvent;
 import com.fongmi.android.tv.impl.UaListener;
 import com.fongmi.android.tv.setting.Setting;
 import com.fongmi.android.tv.ui.custom.CustomTextListener;
 import com.github.catvod.utils.Util;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
-
-import org.greenrobot.eventbus.EventBus;
-import org.greenrobot.eventbus.Subscribe;
-import org.greenrobot.eventbus.ThreadMode;
 
 public class UaDialog extends BaseAlertDialog {
 
@@ -47,7 +42,6 @@ public class UaDialog extends BaseAlertDialog {
 
     @Override
     protected void initEvent() {
-        binding.phone.setOnClickListener(view -> LocalConnectDialog.show(requireActivity(), "settings"));
         binding.positive.setOnClickListener(this::onPositive);
         binding.negative.setOnClickListener(this::onNegative);
         binding.text.addTextChangedListener(new CustomTextListener() {
@@ -85,23 +79,9 @@ public class UaDialog extends BaseAlertDialog {
         dismiss();
     }
 
-    @Subscribe(threadMode = ThreadMode.MAIN)
-    public void onServerEvent(ServerEvent event) {
-        if (event.type() != ServerEvent.Type.SETTING) return;
-        binding.text.setText(event.text());
-        binding.positive.performClick();
-    }
-
     @Override
     public void onStart() {
         super.onStart();
         setWidth(0.55f);
-        EventBus.getDefault().register(this);
-    }
-
-    @Override
-    public void onStop() {
-        super.onStop();
-        EventBus.getDefault().unregister(this);
     }
 }

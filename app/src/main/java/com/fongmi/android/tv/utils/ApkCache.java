@@ -16,7 +16,7 @@ public final class ApkCache {
 
     static final String MODULE_DIRECTORY = "downloads/modules";
     static final Pattern APP = Pattern.compile("update-[0-9a-f]{64}\\.apk");
-    private static final Pattern MODULE = Pattern.compile("[0-9]+-runtime-(python|nodejs|quickjs|thunder|mpv|bdj)-(arm64_v8a|armeabi_v7a)\\.apk");
+    private static final Pattern MODULE = Pattern.compile("[0-9]+-runtime-(mpv)-(arm64_v8a|armeabi_v7a)\\.apk");
     private static final long MAX_AGE = TimeUnit.DAYS.toMillis(7);
 
     public static File app() throws IOException {
@@ -25,7 +25,7 @@ public final class ApkCache {
 
     public static File modules() throws IOException {
         File directory = directory(Path.cache(), "modules");
-        if (!RuntimeInstaller.hasPendingInstallation()) clearModules(directory, null, System.currentTimeMillis() - MAX_AGE);
+        clearModules(directory, null, System.currentTimeMillis() - MAX_AGE);
         return directory;
     }
 

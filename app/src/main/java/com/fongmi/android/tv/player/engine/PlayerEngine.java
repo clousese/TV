@@ -14,7 +14,6 @@ import androidx.media3.common.text.SubtitleOffsets;
 import androidx.media3.common.text.SubtitleSelectionState;
 import androidx.media3.ui.PlayerView;
 
-import com.fongmi.android.tv.bean.Sub;
 import com.fongmi.android.tv.player.effect.PlayerEffect;
 import com.fongmi.android.tv.player.media.PlaySpec;
 import com.google.gson.JsonObject;
@@ -145,12 +144,10 @@ public interface PlayerEngine {
         return false;
     }
 
-    void setSecondarySubtitleSelection(@Nullable TrackSelectionOverride selection);
+    default void setSecondarySubtitleSelection(@Nullable TrackSelectionOverride selection) {
+    }
 
-    void restoreSecondarySubtitleSelection(@Nullable TrackSelectionOverride selection);
-
-    default boolean addSubtitle(Sub sub) {
-        return false;
+    default void restoreSecondarySubtitleSelection(@Nullable TrackSelectionOverride selection) {
     }
 
     String getErrorMessage(PlaybackException e);

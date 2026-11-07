@@ -63,7 +63,6 @@ public class SettingPlayerFragment extends BaseFragment implements UaListener, B
         mBinding.render.setOnClickListener(this::setRender);
         mBinding.background.setOnClickListener(this::onBackground);
         mBinding.buffer.setOnClickListener(this::onBuffer);
-        mBinding.preload.setOnClickListener(this::onPreload);
         mBinding.ua.setOnClickListener(this::onUa);
     }
 
@@ -140,12 +139,8 @@ public class SettingPlayerFragment extends BaseFragment implements UaListener, B
         mBinding.libassText.setText(Setting.getSwitch(PlayerSetting.isLibass()));
     }
 
-    private void onPreload(View view) {
-        ((HomeActivity) requireActivity()).change(4);
-    }
-
     private void onDecode(View view) {
-        ((HomeActivity) requireActivity()).change(5);
+        ((HomeActivity) requireActivity()).change(3);
     }
 
     private void onUa(View view) {
